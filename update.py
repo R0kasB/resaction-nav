@@ -135,9 +135,7 @@ class BaseAgent:
 
         assert len(candidate_objects) == 0
 
-        self.last_distance = min(
-            obj.get("distance", float("inf")) for obj in self.candidate_objects
-        )
+        self.last_distance = self._get_distance_to_target(event)
 
         obs = self.get_obs(event)
 
