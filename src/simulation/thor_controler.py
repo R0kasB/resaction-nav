@@ -24,7 +24,6 @@ class BaseAgent:
         rotate_degrees = 45.0,
         look_degrees = 15.0,
         visibility_distance = 1.5,
-        success_distance = 1.0,
         encoder_name: str = "facebook/dinov2-base",
         device = 'cuda',
         seed = None,
@@ -34,6 +33,7 @@ class BaseAgent:
         fail_penalty = ...,
         bump_penalty = ...,
         success_reward = ...,
+        oversensing_penalty = ...,
     ):
         self.target_object_types = target_object_types
         self.success_distance = success_distance
@@ -74,7 +74,6 @@ class BaseAgent:
             renderDepthImage = False,
             renderInstanceSegmentation = False,
         )
-        self.controller.start()
 
         # action params
         self.action_list = [
@@ -106,21 +105,11 @@ class BaseAgent:
         self.sense_penalty = sense_penalty
         self.fail_penalty = fail_penalty
         self.bump_penalty = bump_penalty
+        self.oversensing_penalty = oversensing_penalty
         self.distance_scale = distance_scale
         self.success_reward = success_reward
 
     def init_new_scene(self, scene):
-        # agent params init
-        self.step_count = 0
-        self.prev_action = 0
-        self.current_downgrade = self.base_downgrade
-        self.remaining_sensing_budget = self.max_sensing_budget
-        self.target_obj_id = None
-        self.target_obj_type = None
-        self.last_distance = None
-        self.closest_distance = None
-        self.action_history = []
-        self.reward_history = []
         
         # scene and controller
         self.scene = scene
@@ -130,10 +119,27 @@ class BaseAgent:
             gridSize=self.move_magnitude,
             renderImage=True,
         )
-        self.controller.step(action='InitialRandomSpawn', 
+        event = self.controller.step(action='InitialRandomSpawn', 
                              randomSeed=self.seed, 
                              forceVisible=True, 
                              numRepeats=1)
+        
+        # agent params init
+        self.step_count = 0
+        self.prev_action = 0
+        self.current_downgrade = self.base_downgrade
+        self.remaining_sensing_budget = self.max_sensing_budget
+        self.target_obj_id = None
+        self.target_obj_type = None
+        self.last_distance = None
+        self.closest_distance = None
+        self.end_status = False
+        self.current_reward = 0
+        self.current_action = "RotateRight"
+        self.current_obs = self._compute_obs()
+        self.action_history = []
+        self.reward_history = []
+        self.obs_history = []
         
         self._define_target()
     
@@ -184,18 +190,16 @@ class BaseAgent:
         return obs, info
 
 
-    def get_obs(self, event=None):
-        if event is None:
-            event = self.current_event
-
-        frame = event.frame
+    def _compute_obs(self):
+        
+        frame = self.current_event.frame
 
         inputs = self.processor(images=frame, return_tensors="pt").to(self.device)
         with torch.no_grad():
             outputs = self.encoder(**inputs)
             vis_feat = outputs.last_hidden_state[:, 0, :].squeeze(0).cpu()
 
-        agent_meta = event.metadata["agent"]
+        agent_meta = self.current_event.metadata["agent"]
 
         pos = agent_meta["position"]
         rot = agent_meta["rotation"]
@@ -248,33 +252,54 @@ class BaseAgent:
             reward += self.distance_scale*diff_distance
             self.closest_distance = self._get_distance_to_object(self.target_obj_pos)
             
-        if self.current_action=='SENSE': reward -= self.sense_penalty
+        if self.current_action=='SENSE' and self.current_downgrade == 1: reward -= (self.sense_penalty + self.oversensing_penalty)
+        elif self.current_action=='SENSE': reward -= self.sense_penalty
         elif self.current_action=='DONE' and self._check_success(): reward += self.success_reward
         elif self.current_action=='DONE' and not self._check_success(): reward -= self.fail_penalty
-        elif not self.controller.last_event.metadata['lastActionSuccess']: reward -= self.bump_penalty
-        else: reward = -self.step_penalty
+        elif not self.current_event.metadata['lastActionSuccess']: reward -= self.bump_penalty
+        else: reward -= self.step_penalty
         
-        if self._end_checker(): reward -= self.fail_penalty
-        self.reward_history.append(reward)
+        if self._fail_checker(): 
+            reward -= self.fail_penalty
+        
         return reward
     
-    def _end_checker(self):
+    def _fail_checker(self):
         '''Check if agent has reached sensing or time quota'''
         return ((self.remaining_sensing_budget<=0) or (self.step_count>=self.max_steps))
     
     def _check_success(self):
-        return self.controller.last_event.metadata["objects"][self.target_obj_idx]["visible"] and (self._get_distance_to_object(self.target_obj_pos)<=self.success_distance)
+        return self.current_event.metadata["objects"][self.target_obj_idx]["visible"] and (self._get_distance_to_object(self.target_obj_pos)<=self.success_distance)
     
     def learn(self):
         pass
 
-    def step(self, action):
+    def _step(self):
         #apply the action chosen, update internal state
         #gère navigation / sensing / stop
         #calcule done, reward, next_obs et info
         #renvoie la transition RL standard
-        self.current_event = self.controller.last_event
-        return next_obs, reward, done
+        self.step_count += 1
+        if not (self.current_action in ["DONE", "SENSE"]):
+            self.current_event = self.controller.step(
+                action=self.current_action,
+                **self.action_params.get(self.current_action, {})
+            )
+            
+        self.current_reward = self._compute_reward() #should compute reward before updating other parameters than event
+        self.current_obs = self._compute_obs()
+        
+        if self.current_action == "SENSE" and self.current_downgrade > 1:
+            self.current_downgrade /= 2
+            
+        self.end_status = (
+            self.current_action == "DONE"
+            or self._fail_checker()
+        ) 
+        
+        self.reward_history.append(self.current_reward)
+        self.action_history.append(self.current_action)
+        self.obs_history.append(self.current_obs)
 
     def close(self):
         try:
