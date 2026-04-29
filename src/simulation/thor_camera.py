@@ -1,47 +1,12 @@
+from pathlib import Path
 import numpy as np
 import torch
-import torch.nn.functional as F
 import torchvision
-from pathlib import Path
 
 from ai2thor.controller import Controller
 from ai2thor.platform import CloudRendering
-
-
-def degrade_resolution(img: torch.Tensor, level: int) -> torch.Tensor:
-    """
-    img: torch.Tensor of shape (C, 256, 256) or (1, C, 256, 256), values in [0, 1]
-    level: integer k >= 0, block size = 2^k (for 256x256, k <= 8)
-    returns: tensor with same spatial shape, where each 2^k x 2^k block is constant
-    """
-    if level < 0 or level > 8:
-        raise ValueError("level must be between 0 and 8 for 256x256 images")
-
-    block_size = 2 ** level
-
-    squeezed = False
-    if img.dim() == 3:
-        # (C, H, W) -> (1, C, H, W)
-        img = img.unsqueeze(0)
-        squeezed = True
-
-    if img.shape[-2:] != (256, 256):
-        raise ValueError(f"Expected image size (256, 256), got {img.shape[-2:]}")
-
-    # Average 2^k x 2^k blocks (downsample)
-    pooled = F.avg_pool2d(img, kernel_size=block_size, stride=block_size)
-
-    # Replicate each block back to 256x256 (upsample)
-    out = F.interpolate(pooled, size=(256, 256), mode="nearest")
-
-    if squeezed:
-        out = out.squeeze(0)
-
-    return out
-
-
+from ..utils.image_resolution import degrade_resolution
 # ---------- AI2-THOR camera wrapper ----------
-
 class ThorCamera:
     """
     Handles:
@@ -130,7 +95,9 @@ class ThorCamera:
 
 
 def main():
-    cam = ThorCamera(scene="FloorPlan1", width=256, height=256, device="cuda")
+    Path("output").mkdir(parents=True, exist_ok=True)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    cam = ThorCamera(scene="FloorPlan1", width=256, height=256, device=device)
 
     try:
 
@@ -147,4 +114,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    

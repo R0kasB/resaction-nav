@@ -1,0 +1,9 @@
+wandb:
+  enabled: true
+  project: "ai2thor-rl"
+  entity: "your_username"
+  run_name: "exp1"
+
+huggingface:
+  repo_id: "your-username/your-model"
+  push: true

@@ -1,4 +1,3 @@
-import image_resolution
 import torch
 import torch.nn.functional as F
 from ai2thor.controller import Controller
