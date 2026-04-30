@@ -26,20 +26,20 @@ class BaseAgent:
         visibility_distance = 1.5,
         encoder_name: str = "facebook/dinov2-base",
         device = 'cuda',
-        seed = None,
-        step_penalty = 0.001,
-        distance_scale = ...,
-        sense_penalty = ...,
-        fail_penalty = ...,
-        bump_penalty = ...,
-        success_reward = ...,
-        oversensing_penalty = ...,
+        seed = 0,
+        step_penalty = 0.002,
+        distance_scale = 0.01,
+        sense_penalty = 0.02,
+        oversensing_penalty = 0.05,
+        bump_penalty = 0.03,
+        fail_penalty = 1.0,
+        success_reward = 5.0,
     ):
         self.target_object_types = target_object_types
         self.success_distance = success_distance
         self.base_resolution = base_resolution
         #start with the lowest resolution (every step, resolution is "twice" better)
-        self.base_downgrade = math.floor(math.log2(min(base_resolution)))
+        self.base_downgrade = math.floor(math.log2(min(base_resolution))) #TODO
         self.max_steps = max_steps
         self.sensing_cost = sensing_cost
         self.max_sensing_budget = max_sensing_budget
@@ -61,13 +61,13 @@ class BaseAgent:
             device = "cuda" if torch.cuda.is_available() else "cpu"
         self.device = torch.device(device)  
 
-        self.processor = AutoProcessor.from_pretrained(encoder_name)
-        self.encoder = AutoModel.from_pretrained(encoder_name).to(self.device)
-        self.encoder.eval()
+        #self.processor = AutoProcessor.from_pretrained(encoder_name)
+        #self.encoder = AutoModel.from_pretrained(encoder_name).to(self.device)
+        #self.encoder.eval()
         
         # controller
         self.controller = Controller(
-            platform = CloudRendering,
+            #platform = CloudRendering,
             width = self.base_resolution[0],
             height = self.base_resolution[1],
             visibilityDistance = self.visibility_distance,
@@ -100,6 +100,8 @@ class BaseAgent:
             "LookDown": {"degrees": self.look_degrees},
         }
         
+        self.action2id = {a:i for i,a in enumerate(self.action_list)}
+        
         # Reward params
         self.step_penalty = step_penalty
         self.sense_penalty = sense_penalty
@@ -108,89 +110,37 @@ class BaseAgent:
         self.oversensing_penalty = oversensing_penalty
         self.distance_scale = distance_scale
         self.success_reward = success_reward
-
-    def init_new_scene(self, scene):
-        
-        # scene and controller
+    
+    def init_new_scene(self, scene, target_obj_type = None):
         self.scene = scene
         self.controller.reset(scene)
-        event = self.controller.step(
+
+        self.current_event = self.controller.step(
             action="Initialize",
             gridSize=self.move_magnitude,
             renderImage=True,
         )
-        event = self.controller.step(action='InitialRandomSpawn', 
-                             randomSeed=self.seed, 
-                             forceVisible=True, 
-                             numRepeats=1)
-        
-        # agent params init
+
+        self.current_event = self.controller.step(
+            action="InitialRandomSpawn",
+            randomSeed=self.seed,
+            forceVisible=True,
+        )
+
         self.step_count = 0
-        self.prev_action = 0
+        self.current_action = "MoveAhead"
         self.current_downgrade = self.base_downgrade
         self.remaining_sensing_budget = self.max_sensing_budget
-        self.target_obj_id = None
-        self.target_obj_type = None
-        self.last_distance = None
-        self.closest_distance = None
+        self.closest_distance = np.inf
         self.end_status = False
         self.current_reward = 0
-        self.current_action = "RotateRight"
-        self.current_obs = self._compute_obs()
-        self.action_history = []
-        self.reward_history = []
-        self.obs_history = []
-        
-        self._define_target()
-    
-    def reset(self, target_obj_type):
-        #to use at the end of an epoch (step?   )
-        self.controller.reset(self.scene)
+        self.trajectory = []
 
-        #initialize
-        event = self.controller.step(
-            action="Initialize",
-            gridSize=self.move_magnitude,
-            visibilityDistance=self.visibility_distance,
-            renderImage=True,
-        )
+        if target_obj_type: self.target_obj_type = target_obj_type 
+        else: self._define_target()
+        self.closest_distance = self._get_min_distance_to_object(self.target_obj_type)
 
-        #reset episode state
-        self.step_count = 0
-        self.current_action = None
-        self.current_downgrade = self.base_downgrade
-        self.remaining_sensing_budget = self.max_sensing_budget
-        self.last_distance = None
-        self.closest_distance = None
-        self.action_history = []
-
-        #next/new   object cible
-        if self.target_obj_type is None:
-            self.target_obj_type = random.choice(self.target_object_types)
-        else:
-            self.target_obj_type = target_obj_type
-
-        candidate_objects = [
-            obj for obj in event.metadata["objects"]
-            if obj["objectType"] == self.target_obj_type
-        ]
-
-        assert len(candidate_objects) == 0
-
-        self.last_distance = self._get_distance_to_object(event)
-        self.closest_distance = self.last_distance
-
-        obs = self.get_obs(event)
-
-        info = {
-            "target_obj_type": self.target_obj_type,
-            "num_candidates": len(self.candidate_objects),
-        }
-
-        return obs, info
-
-
-    def _compute_obs(self):
+    '''def _compute_obs(self):
         
         frame = self.current_event.frame
 
@@ -205,54 +155,73 @@ class BaseAgent:
         rot = agent_meta["rotation"]
 
         gps = torch.tensor([pos["x"], pos["y"], pos["z"]], dtype=torch.float32)
-
         compass = torch.tensor([rot["y"] / 360.0, agent_meta.get("cameraHorizon", 0.0) / 360.0], dtype=torch.float32)
 
-        #self.prev_action = 0 => prev_action = [1, 0, 0, ..]
-        #self.prev_action = 1 => prev_action = [0, 1 0, ..]        
-        prev_action = F.one_hot(torch.tensor(self.prev_action), num_classes=len(self.action_list)).float()
-
+        #self.current_action = 0 => current_action = [1, 0, 0, ..]
+        #self.current_action = 1 => current_action = [0, 1 0, ..]
+        action_id = self.action2id[self.current_action]
+        current_action = F.one_hot(torch.tensor(action_id), num_classes=len(self.action_list)).float()
         res_level = torch.tensor([float(self.current_downgrade)], dtype=torch.float32)
-
         remaining_budget = torch.tensor([float(self.remaining_sensing_budget)], dtype=torch.float32)
-
-        obs = torch.cat([vis_feat, gps, compass, prev_action, res_level, remaining_budget], dim=0)
-
-        return obs
-    
-    #TODO
-    
-    def _define_target(self):
-        event = self.controller.last_event
-        objects = event.metadata["objects"]
-        if self.target_object_types: valid_objects = [(i, obj) for i, obj in enumerate(objects) if (obj["pickupable"]) and (self._get_distance_to_object(obj["position"])>self.visibility_distance) and (obj['objectType'] in self.target_object_types)]
-        else: valid_objects = [(i, obj) for i, obj in enumerate(objects) if obj["pickupable"] and self._get_distance_to_object(obj["position"])>self.visibility_distance]
-        if len(valid_objects) == 0:
-            raise ValueError("No valid objects found for target selection")
-        i, obj = random.choice(valid_objects)
-        self.target_obj_idx = i
-        self.target_obj_pos = obj["position"]
+        obs = torch.cat([vis_feat, gps, compass, current_action, res_level, remaining_budget], dim=0)
+        return obs'''
         
-    def _get_distance_to_object(self, obj_pos):
+    def _compute_obs(self):
+        return None
+
+    def _define_target(self):
+        objects = self.current_event.metadata["objects"]
+        valid_objects = [
+            obj for obj in objects
+            if obj["pickupable"]
+            and (self.target_object_types is None or obj["objectType"] in self.target_object_types)
+        ]
+        if len(valid_objects) == 0:
+            raise ValueError("No valid objects found")
+        
+        obj = random.choice(valid_objects)
+        self.target_obj_type = obj["objectType"]
+        
+    def _get_min_distance_to_object(self, obj_type):
         agent_pos = self.current_event.metadata["agent"]["position"]
-
-        dx = agent_pos["x"] - obj_pos["x"]
-        dy = agent_pos["y"] - obj_pos["y"]
-        dz = agent_pos["z"] - obj_pos["z"]
-
-        return np.sqrt(dx*dx + dy*dy + dz*dz)
+        
+        target_positions = np.array([
+            [obj["position"]["x"], obj["position"]["y"], obj["position"]["z"]]
+            for obj in self.current_event.metadata["objects"]
+            if obj["objectType"] == obj_type
+        ], dtype=np.float32)
+        agent_vector = np.array(
+            [agent_pos["x"], agent_pos["y"], agent_pos["z"]],
+            dtype=np.float32
+        )
+        
+        distances = np.linalg.norm(target_positions - agent_vector, axis=1)
+        return distances.min()
+    
+    def _get_distance_to_position(self, obj_pos):
+        agent_pos = self.current_event.metadata["agent"]["position"]
+        agent_vec = np.array(
+            [agent_pos["x"], agent_pos["y"], agent_pos["z"]],
+            dtype=np.float32
+        )
+        obj_vec = np.array(
+            [obj_pos["x"], obj_pos["y"], obj_pos["z"]],
+            dtype=np.float32
+        )
+        return np.linalg.norm(agent_vec - obj_vec)
 
     def _compute_reward(self):
         #compute the reward of a step (step penalty, sensing penalty, progress toward the target)
         '''step penalty - distance reduction reward - sensing penalty - success reward or fail'''
         reward = 0.0
         
-        diff_distance = (self.closest_distance - self._get_distance_to_object(self.target_obj_pos))
+        current_dist = self._get_min_distance_to_object(self.target_obj_type)
+        diff_distance = (self.closest_distance - current_dist)
         if diff_distance > 0:
             reward += self.distance_scale*diff_distance
-            self.closest_distance = self._get_distance_to_object(self.target_obj_pos)
+            self.closest_distance = current_dist
             
-        if self.current_action=='SENSE' and self.current_downgrade == 1: reward -= (self.sense_penalty + self.oversensing_penalty)
+        if self.current_action=='SENSE' and self.current_downgrade > 2 and self.remaining_sensing_budget<=0: reward -= (self.sense_penalty + self.oversensing_penalty)
         elif self.current_action=='SENSE': reward -= self.sense_penalty
         elif self.current_action=='DONE' and self._check_success(): reward += self.success_reward
         elif self.current_action=='DONE' and not self._check_success(): reward -= self.fail_penalty
@@ -266,40 +235,65 @@ class BaseAgent:
     
     def _fail_checker(self):
         '''Check if agent has reached sensing or time quota'''
-        return ((self.remaining_sensing_budget<=0) or (self.step_count>=self.max_steps))
+        return self.step_count>=self.max_steps
     
     def _check_success(self):
-        return self.current_event.metadata["objects"][self.target_obj_idx]["visible"] and (self._get_distance_to_object(self.target_obj_pos)<=self.success_distance)
-    
-    def learn(self):
-        pass
+        target_objs = [
+            obj for obj in self.current_event.metadata["objects"]
+            if obj["objectType"] == self.target_obj_type
+        ]
 
-    def _step(self):
-        #apply the action chosen, update internal state
-        #gère navigation / sensing / stop
-        #calcule done, reward, next_obs et info
-        #renvoie la transition RL standard
+        return any(
+            obj["visible"]
+            and self._get_distance_to_position(obj["position"]) <= self.success_distance
+            for obj in target_objs
+        )
+        
+    def update_seed(self, seed):
+        self.seed = seed
+    
+    def run_scene(self, model):
+        previous_obs = self._compute_obs()
+        while not self.end_status:
+            action_id = model(previous_obs)
+            action = self.action_list[action_id]
+            obs, reward, done = self.step(action)
+            self.trajectory.append({
+                "obs": previous_obs,
+                "action": action,
+                "reward": reward,
+                "next_obs": obs,
+                "done": done
+            })
+            previous_obs = obs
+        return self.trajectory
+
+    def step(self, action):
         self.step_count += 1
-        if not (self.current_action in ["DONE", "SENSE"]):
+
+        if action not in ["DONE", "SENSE"]:
             self.current_event = self.controller.step(
-                action=self.current_action,
-                **self.action_params.get(self.current_action, {})
+                action=action,
+                **self.action_params.get(action, {})
             )
-            
-        self.current_reward = self._compute_reward() #should compute reward before updating other parameters than event
-        self.current_obs = self._compute_obs()
-        
-        if self.current_action == "SENSE" and self.current_downgrade > 1:
-            self.current_downgrade /= 2
-            
-        self.end_status = (
-            self.current_action == "DONE"
+        self.current_action = action
+
+        obs = self._compute_obs()
+        reward = self._compute_reward()
+        done = (
+            action == "DONE"
             or self._fail_checker()
-        ) 
-        
-        self.reward_history.append(self.current_reward)
-        self.action_history.append(self.current_action)
-        self.obs_history.append(self.current_obs)
+        )
+
+        self.current_reward = reward
+        self.current_obs = obs
+        self.end_status = done
+
+        if action == "SENSE" and self.current_downgrade >= 2 and self.remaining_sensing_budget > 0:
+            self.current_downgrade /= 2
+            self.remaining_sensing_budget -= 1
+
+        return obs, reward, done
 
     def close(self):
         try:
