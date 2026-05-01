@@ -1,13 +1,14 @@
 [project]
 name = "resaction-nav"
 version = "0.1.0"
-description = "Add your description here"
+description = "Dynamic-resolution object-navigation agent trained with PPO in AI2-THOR"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "ai2thor>=5.0.0",
     "huggingface-hub>=1.12.2",
     "numpy>=2.4.4",
+    "pyyaml>=6.0.3",
     "torch>=2.11.0",
     "torchvision>=0.26.0",
     "transformers>=5.7.0",

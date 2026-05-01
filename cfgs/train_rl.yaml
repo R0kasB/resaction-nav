@@ -1,9 +1,55 @@
+training:
+  scenes:
+    - FloorPlan1
+    - FloorPlan2
+    - FloorPlan3
+    - FloorPlan4
+    - FloorPlan5
+  num_episodes: 500
+  print_every: 10
+  checkpoint_every: 50
+  output_dir: output
+  checkpoint_dir: checkpoints
+  resume_from: null  # path to a .pt checkpoint to resume from, or null
+
+env:
+  base_resolution: [224, 224]
+  success_distance: 0.5
+  max_steps: 200
+  max_sensing_budget: 5
+  move_magnitude: 0.25
+  rotate_degrees: 45.0
+  look_degrees: 15.0
+  visibility_distance: 1.5
+  seed: 42
+  reward_cfg:
+    step_penalty: 0.002
+    sense_penalty: 0.02
+    oversensing_penalty: 0.05
+    bump_penalty: 0.03
+    fail_penalty: 1.0
+    success_reward: 5.0
+    distance_scale: 0.01
+
+agent:
+  lr: 3.0e-4
+  gamma: 0.99
+  clip_eps: 0.2
+  value_coef: 0.5
+  entropy_coef: 0.01
+  epochs: 4
+
+model:
+  hidden_dim: 512
+  lstm_layers: 1
+
 wandb:
   enabled: true
-  project: "ai2thor-rl"
-  entity: "your_username"
-  run_name: "exp1"
+  project: ai2thor-rl
+  entity: rokasbertasius33
+  run_name: exp1
 
 huggingface:
-  repo_id: "your-username/your-model"
-  push: true
+  repo_id: R0kasB/resaction-nav
+  push: false
+  push_every: 100  # episodes between hub pushes
