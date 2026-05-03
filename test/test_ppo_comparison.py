@@ -1,6 +1,6 @@
 """
 Compares core PPO algorithmic components between:
-  - CleanRL reference (src/agents/ppo.py  — Agent / layer_init)
+  - In-test CleanRL-style reference (Agent / layer_init)
   - Project implementation (src/agents/ppo_agent.py — PPOAgent)
 
 Three test groups:
@@ -14,7 +14,7 @@ from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# ppo.py imports tensorboard at the top level; stub it so the test doesn't need it installed.
+# Keep tensorboard imports stubbed for environments without it.
 sys.modules.setdefault("tensorboard", MagicMock())
 sys.modules.setdefault("torch.utils.tensorboard", MagicMock())
 
@@ -24,9 +24,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import gymnasium as gym
+from torch.distributions.categorical import Categorical
 
 from src.agents.ppo_agent import PPOAgent
-from src.agents.ppo import Agent as CleanRLAgent
 
 SEED = 42
 torch.manual_seed(SEED)
@@ -35,6 +35,48 @@ np.random.seed(SEED)
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
+
+def _layer_init(layer, std=np.sqrt(2), bias_const=0.0):
+    torch.nn.init.orthogonal_(layer.weight, std)
+    torch.nn.init.constant_(layer.bias, bias_const)
+    return layer
+
+
+class _CleanRLReferenceAgent(nn.Module):
+    """Minimal CleanRL-style CartPole actor-critic used as test reference."""
+
+    def __init__(self, env):
+        super().__init__()
+        obs_space = getattr(env, "single_observation_space", env.observation_space)
+        action_space = getattr(env, "single_action_space", env.action_space)
+        obs_dim = int(np.array(obs_space.shape).prod())
+        n_actions = action_space.n
+
+        self.critic = nn.Sequential(
+            _layer_init(nn.Linear(obs_dim, 64)),
+            nn.Tanh(),
+            _layer_init(nn.Linear(64, 64)),
+            nn.Tanh(),
+            _layer_init(nn.Linear(64, 1), std=1.0),
+        )
+        self.actor = nn.Sequential(
+            _layer_init(nn.Linear(obs_dim, 64)),
+            nn.Tanh(),
+            _layer_init(nn.Linear(64, 64)),
+            nn.Tanh(),
+            _layer_init(nn.Linear(64, n_actions), std=0.01),
+        )
+
+    def get_value(self, x):
+        return self.critic(x)
+
+    def get_action_and_value(self, x, action=None):
+        logits = self.actor(x)
+        probs = Categorical(logits=logits)
+        if action is None:
+            action = probs.sample()
+        return action, probs.log_prob(action), probs.entropy(), self.critic(x)
 
 class _MLPPolicy(nn.Module):
     """Minimal MLP satisfying PPOAgent's (logits, value, hidden) interface."""
@@ -75,8 +117,8 @@ def _reference_gae(
     CleanRL GAE formula in ppo_agent dones convention:
       dones[t] = True if episode ended after action at step t.
 
-    Equivalent to ppo.py where dones[t] = done_after_step_{t-1}
-    because ppo.py uses dones[t+1] as the mask at step t.
+    Equivalent to the standard CleanRL dones convention where dones[t]
+    corresponds to done-after-previous-step masking.
     """
     T = len(rewards)
     advantages = torch.zeros(T)
@@ -163,7 +205,7 @@ class TestLossEquivalence:
         surr2 = ratio.clamp(1 - clip_eps, 1 + clip_eps) * advantages
         agent_loss = -torch.min(surr1, surr2).mean()
 
-        # ppo.py: max(-adv*ratio, -adv*clamp(ratio)).mean()
+        # CleanRL-style clipped policy loss: max(-adv*ratio, -adv*clamp(ratio)).mean()
         pg_loss1 = -advantages * ratio
         pg_loss2 = -advantages * ratio.clamp(1 - clip_eps, 1 + clip_eps)
         cleanrl_loss = torch.max(pg_loss1, pg_loss2).mean()
@@ -188,7 +230,7 @@ class TestLossEquivalence:
                 (v_clipped - returns).pow(2),
             ).mean()
 
-            # ppo.py clipped value loss
+            # CleanRL-style clipped value loss
             v_loss_unclipped = (new_vals - returns) ** 2
             v_clipped_ref = old_vals + torch.clamp(new_vals - old_vals, -clip_eps, clip_eps)
             v_loss_clipped = (v_clipped_ref - returns) ** 2
@@ -242,7 +284,7 @@ def _run_ppo_agent(seed: int = SEED) -> list[float]:
 
 
 def _run_cleanrl(seed: int = SEED) -> list[float]:
-    """Minimal CleanRL training loop using the Agent from ppo.py."""
+    """Minimal CleanRL-style reference training loop."""
     torch.manual_seed(seed)
     np.random.seed(seed)
 
@@ -252,7 +294,7 @@ def _run_cleanrl(seed: int = SEED) -> list[float]:
         return env
 
     envs = gym.vector.SyncVectorEnv([_make])
-    agent = CleanRLAgent(envs)
+    agent = _CleanRLReferenceAgent(envs)
     optimizer = optim.Adam(agent.parameters(), lr=2.5e-4, eps=1e-5)
 
     obs_dim = envs.single_observation_space.shape[0]

@@ -1,13 +1,11 @@
 """Simulation package."""
 
-from .PPO import PPO, PPOMetrics
-
-__all__ = ["PPO", "PPOMetrics"]
+__all__ = []
 
 try:
     from .thor_env import ThorEnv, RewardConfig
 
-    __all__ += ["ThorEnv", "RewardConfig"]
+    __all__ = ["ThorEnv", "RewardConfig"]
 except ModuleNotFoundError:
-    # Allow importing PPO utilities without requiring AI2-THOR.
+    # Allow importing the package in environments without AI2-THOR.
     pass
