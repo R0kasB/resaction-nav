@@ -48,8 +48,10 @@ class PolicyLSTM(nn.Module):
             obs = obs.unsqueeze(1)  # (batch, 1, input_dim)
 
         out, hidden = self.lstm(obs, hidden)
-        out = out[:, -1, :]  # last timestep
+        # single step: collapse T=1 → (batch, hidden_dim)
+        # full sequence: keep all timesteps → (batch, T, hidden_dim)
+        out = out.squeeze(1) if out.size(1) == 1 else out
 
-        logits = self.policy_head(out)   # (batch, n_actions)
-        value  = self.value_head(out)    # (batch, 1)
+        logits = self.policy_head(out)   # (batch, n_actions) or (batch, T, n_actions)
+        value  = self.value_head(out)    # (batch, 1)         or (batch, T, 1)
         return logits, value, hidden
