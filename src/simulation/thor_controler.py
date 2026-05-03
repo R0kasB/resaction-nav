@@ -141,7 +141,9 @@ class BaseAgent:
         self.closest_distance = self._get_min_distance_to_object(self.target_obj_type)
 
     def _compute_obs(self):
-        frame = self.current_event.frame
+        # AI2-THOR frames can be non-contiguous / negative-stride views.
+        # Ensure contiguous memory before passing to image processors.
+        frame = np.ascontiguousarray(self.current_event.frame)
         inputs = self.processor(images=frame, return_tensors="pt").to(self.device)
         with torch.no_grad():
             outputs = self.encoder(**inputs)
@@ -254,19 +256,45 @@ class BaseAgent:
     def update_seed(self, seed):
         self.seed = seed
 
+    def _build_trajectory_step(self, obs, action, reward, next_obs, done):
+        """
+        Normalize trajectory schema while keeping backward compatibility.
+
+        Canonical keys requested by training pipeline docs:
+            - obs
+            - Action
+            - reward
+            - nex_obs
+            - is_model_done
+        """
+        return {
+            # Requested canonical schema
+            "obs": obs,
+            "Action": action,
+            "reward": reward,
+            "nex_obs": next_obs,
+            "is_model_done": done,
+            # Backward-compatible aliases used by existing code
+            "action": action,
+            "next_obs": next_obs,
+            "done": done,
+        }
+
     def run_scene(self, model):
         previous_obs = self._compute_obs()
         while not self.end_status:
             action_id = model(previous_obs)
             action = self.action_list[action_id]
             obs, reward, done = self.step(action)
-            self.trajectory.append({
-                "obs": previous_obs,
-                "action": action,
-                "reward": reward,
-                "next_obs": obs,
-                "done": done
-            })
+            self.trajectory.append(
+                self._build_trajectory_step(
+                    obs=previous_obs,
+                    action=action,
+                    reward=reward,
+                    next_obs=obs,
+                    done=done,
+                )
+            )
             previous_obs = obs
         return self.trajectory
 
