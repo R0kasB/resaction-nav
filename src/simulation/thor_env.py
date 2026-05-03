@@ -229,9 +229,22 @@ class ThorEnv:
     # ------------------------------------------------------------------
 
     def _compute_obs(self) -> torch.Tensor:
+        if self.current_event is None or getattr(self.current_event, "frame", None) is None:
+            raise RuntimeError("No current frame available. Call reset() before requesting observations.")
+
         frame = np.ascontiguousarray(self.current_event.frame)
-        tensor = torch.from_numpy(frame).permute(2, 0, 1).float() / 255.0
-        return degrade_resolution(tensor, int(self._current_downgrade))
+        if frame.ndim != 3 or frame.shape[2] != 3:
+            raise ValueError(f"Expected RGB frame with shape (H, W, 3), got {frame.shape!r}")
+
+        try:
+            tensor = torch.from_numpy(frame).permute(2, 0, 1).to(dtype=torch.float32)
+        except RuntimeError:
+            # Some Torch builds are missing NumPy bridge support at runtime.
+            tensor = torch.tensor(frame.tolist(), dtype=torch.float32).permute(2, 0, 1)
+        tensor = tensor / 255.0
+        max_level = int(math.floor(math.log2(min(tensor.shape[1], tensor.shape[2]))))
+        level = int(max(0, min(self._current_downgrade, max_level)))
+        return degrade_resolution(tensor, level)
 
     # ------------------------------------------------------------------
     # Target / distance helpers
