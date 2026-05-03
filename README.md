@@ -6,7 +6,7 @@ This project explores **dynamic resolution for efficient visual navigation** in 
 
 ---
 
-# TODO
+## TODO
 
 P0: Before First Real Training
 - [ ] Fix target conditioning: add target class encoding to `ThorEnv.get_aux_features()` or restrict `cfgs/train_rl.yaml` to a fixed `target_object_types` list.
