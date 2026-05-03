@@ -74,13 +74,14 @@ def run_agent(env: ThorEnv, agent: PPOAgent, cfg: dict, start_episode: int = 0):
         episode_reward = 0.0
         episode_success = False
         hidden = None
+        agent.store_initial_hidden(hidden)
 
         while not done:
             action_idx, log_prob, value, hidden = agent.act(obs, hidden)
             next_obs, reward, terminated, truncated, info = env.step(action_idx)
             next_obs = next_obs.flatten().unsqueeze(0)
 
-            agent.store(obs.squeeze(0), action_idx, log_prob, reward, value, terminated or truncated)
+            agent.store(obs, action_idx, log_prob, reward, value, terminated or truncated)
 
             obs = next_obs
             episode_reward += reward
@@ -88,7 +89,7 @@ def run_agent(env: ThorEnv, agent: PPOAgent, cfg: dict, start_episode: int = 0):
             if terminated and info["success"]:
                 episode_success = True
 
-        loss_dict = agent.update()
+        loss_dict = agent.update(obs, hidden)
         rewards.append(episode_reward)
         episode_lengths.append(info["step"])
         successes.append(episode_success)

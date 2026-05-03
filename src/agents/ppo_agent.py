@@ -12,32 +12,33 @@ class PPOAgent:
     (action_logits, value, hidden) from a flat observation vector.
 
     act(obs, hidden) -> (action_idx, log_prob, value, next_hidden)
-        obs:         flat observation tensor from the environment
+        obs:         observation tensor, shape (1, obs_dim)
         hidden:      LSTM hidden state; pass None at episode start
         action_idx:  discrete action int to pass to env.step()
         log_prob:    log probability of the sampled action (old policy, for PPO ratio)
-        value:       critic's state value estimate
+        value:       critic's state value estimate (scalar tensor)
         next_hidden: updated LSTM hidden state
 
     store_initial_hidden(hidden)
-        Save the hidden state at rollout start so update() can replay the
-        sequence from the same LSTM context across all PPO epochs.
+        Save the hidden state before the first store() of each rollout.
+        Must be called before any store() calls.
 
     store(obs, action, log_prob, reward, value, done)
         Buffers one transition. Call after every env.step().
 
-    update() -> {"policy_loss", "value_loss", "entropy"}
-        Computes GAE advantages, runs PPO epochs with policy ratio clipping
-        and value clipping, clears the buffer. Call once per episode/rollout.
-        Returns loss components averaged over epochs, for logging.
+    update(next_obs, final_hidden) -> {"policy_loss", "value_loss", "entropy"}
+        Computes GAE advantages, runs PPO epochs with TBPTT chunking,
+        clears the buffer. Call once per rollout.
+        Returns loss components averaged over all gradient steps, for logging.
 
     Usage:
-        agent = PPOAgent(policy=PolicyLSTM(...), lr=3e-4)
+        agent = PPOAgent(policy=PolicyLSTM(...), lr=3e-4, total_updates=1000)
         hidden = None
-        agent.store_initial_hidden(hidden)                        # before episode loop
-        action, log_prob, value, hidden = agent.act(obs, hidden)
-        agent.store(obs, action, log_prob, reward, value, done)  # each step
-        losses = agent.update(next_obs, hidden)                  # each episode end
+        agent.store_initial_hidden(hidden)
+        while not done:
+            action, log_prob, value, hidden = agent.act(obs, hidden)
+            agent.store(obs, action, log_prob, reward, value, done)
+        losses = agent.update(obs, hidden)
     """
 
     def __init__(
@@ -47,37 +48,56 @@ class PPOAgent:
         gamma: float = 0.99,
         gae_lambda: float = 0.95,
         clip_eps: float = 0.2,
-        value_clip_eps: float = 0.5,
+        value_clip_eps: float = 0.2,
+        use_value_clip: bool = True,
         value_coef: float = 0.5,
         entropy_coef: float = 0.01,
         epochs: int = 4,
+        chunk_size: int = 0,       # 0 = full BPTT; >0 = TBPTT segment length
+        total_updates: int = 0,    # >0 enables linear LR decay to 0
     ):
         self.policy = policy
         self.gamma = gamma
         self.gae_lambda = gae_lambda
         self.clip_eps = clip_eps
         self.value_clip_eps = value_clip_eps
+        self.use_value_clip = use_value_clip
         self.value_coef = value_coef
         self.entropy_coef = entropy_coef
         self.epochs = epochs
+        self.chunk_size = chunk_size
         self.optimizer = optim.Adam(policy.parameters(), lr=lr)
+        self.scheduler = (
+            optim.lr_scheduler.LinearLR(
+                self.optimizer, start_factor=1.0, end_factor=0.0, total_iters=total_updates
+            )
+            if total_updates > 0
+            else None
+        )
         self.buffer: list[dict] = []
         self.initial_hidden = None
 
     def act(self, obs: torch.Tensor, hidden=None):
         """
         Sample an action from the policy.
+        obs: (1, obs_dim)
         Returns: (action_idx, log_prob, value, next_hidden)
         """
         with torch.no_grad():
             logits, value, hidden = self.policy(obs, hidden)
         dist = Categorical(logits=logits)
         action = dist.sample()
-        return action.item(), dist.log_prob(action).squeeze(), value.squeeze(-1), hidden
+        return action.item(), dist.log_prob(action).squeeze(-1), value.squeeze(), hidden
 
     def store_initial_hidden(self, hidden):
-        """Call with the hidden state at the start of each rollout."""
-        self.initial_hidden = hidden
+        """Call with the hidden state before the first store() of each rollout."""
+        if self.buffer:
+            raise RuntimeError("store_initial_hidden must be called before any store() calls for the rollout")
+        if hidden is None:
+            self.initial_hidden = None
+        else:
+            h, c = hidden
+            self.initial_hidden = (h.detach(), c.detach())
 
     def store(
         self,
@@ -101,13 +121,15 @@ class PPOAgent:
     def update(self, next_obs: torch.Tensor, final_hidden=None) -> dict:
         """
         Compute advantages over the stored rollout, run PPO epochs, clear the buffer.
-        next_obs:     first observation after the rollout ends (for bootstrapping V(s_{T+1}))
+        next_obs:     observation after the rollout ends (for bootstrapping V(s_{T+1}))
         final_hidden: LSTM hidden state after the last act() call
-        Call once per episode/rollout — after all transitions have been stored.
-        Returns a dict with loss components for logging.
+        Returns a dict with loss components averaged over all gradient steps, for logging.
         """
         trajectory = self.buffer
         self.buffer = []
+
+        if not trajectory:
+            return {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
 
         obs      = torch.stack([t["obs"]      for t in trajectory])
         old_lps  = torch.stack([t["log_prob"]  for t in trajectory]).detach()
@@ -126,54 +148,87 @@ class PPOAgent:
         returns, advantages = self._compute_gae(rewards, dones, old_vals, last_value)
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
+        T   = obs.shape[0]
+        seg = self.chunk_size if self.chunk_size > 0 else T
+
         total_policy_loss = total_value_loss = total_entropy = 0.0
+        n_updates = 0
 
         for _ in range(self.epochs):
-            logits, values, _ = self.policy(obs.unsqueeze(0), hidden=self.initial_hidden)
-            logits = logits.squeeze(0)  # (T, n_actions)
-            values = values.squeeze(0)  # (T, 1)
-            dist = Categorical(logits=logits)
-            new_lps = dist.log_prob(actions)
-            entropy = dist.entropy().mean()
+            h = self.initial_hidden
 
-            ratio = (new_lps - old_lps).exp()
-            surr1 = ratio * advantages
-            surr2 = ratio.clamp(1 - self.clip_eps, 1 + self.clip_eps) * advantages
-            policy_loss = -torch.min(surr1, surr2).mean()
+            for chunk_start in range(0, T, seg):
+                chunk_end = min(chunk_start + seg, T)
+                sl = slice(chunk_start, chunk_end)
 
-            v_pred = values.squeeze(-1)
-            v_clipped = old_vals + (v_pred - old_vals).clamp(-self.value_clip_eps, self.value_clip_eps)
-            value_loss = torch.max((v_pred - returns).pow(2), (v_clipped - returns).pow(2)).mean()
+                # Forward the LSTM through this chunk step-by-step, resetting
+                # hidden state at any episode boundaries within the chunk.
+                all_logits, all_values = [], []
+                for i in range(chunk_start, chunk_end):
+                    if i > 0 and dones[i - 1]:
+                        h = None
+                    logit, val, h = self.policy(obs[i], hidden=h)
+                    all_logits.append(logit.squeeze())
+                    all_values.append(val.squeeze())
 
-            loss = policy_loss + self.value_coef * value_loss - self.entropy_coef * entropy
-            self.optimizer.zero_grad()
-            loss.backward()
-            nn.utils.clip_grad_norm_(self.policy.parameters(), max_norm=0.5)
-            self.optimizer.step()
+                logits = torch.stack(all_logits)  # (chunk, n_actions)
+                v_pred = torch.stack(all_values)  # (chunk,)
 
-            total_policy_loss += policy_loss.item()
-            total_value_loss  += value_loss.item()
-            total_entropy     += entropy.item()
+                dist        = Categorical(logits=logits)
+                new_lps     = dist.log_prob(actions[sl])
+                entropy     = dist.entropy().mean()
 
-        n = self.epochs
+                ratio  = (new_lps - old_lps[sl]).exp()
+                surr1  = ratio * advantages[sl]
+                surr2  = ratio.clamp(1 - self.clip_eps, 1 + self.clip_eps) * advantages[sl]
+                policy_loss = -torch.min(surr1, surr2).mean()
+
+                if self.use_value_clip:
+                    v_clipped  = old_vals[sl] + (v_pred - old_vals[sl]).clamp(-self.value_clip_eps, self.value_clip_eps)
+                    value_loss = 0.5 * torch.max((v_pred - returns[sl]).pow(2), (v_clipped - returns[sl]).pow(2)).mean()
+                else:
+                    value_loss = 0.5 * (v_pred - returns[sl]).pow(2).mean()
+
+                loss = policy_loss + self.value_coef * value_loss - self.entropy_coef * entropy
+                self.optimizer.zero_grad()
+                loss.backward()
+                nn.utils.clip_grad_norm_(self.policy.parameters(), max_norm=0.5)
+                self.optimizer.step()
+
+                # Detach hidden state between chunks so gradients don't flow
+                # across TBPTT boundaries in subsequent chunks.
+                if h is not None:
+                    hh, cc = h
+                    h = (hh.detach(), cc.detach())
+
+                total_policy_loss += policy_loss.item()
+                total_value_loss  += value_loss.item()
+                total_entropy     += entropy.item()
+                n_updates         += 1
+
+        if self.scheduler is not None:
+            self.scheduler.step()
+
+        self.initial_hidden = None
+
         return {
-            "policy_loss": total_policy_loss / n,
-            "value_loss":  total_value_loss  / n,
-            "entropy":     total_entropy      / n,
+            "policy_loss": total_policy_loss / n_updates,
+            "value_loss":  total_value_loss  / n_updates,
+            "entropy":     total_entropy      / n_updates,
         }
 
     def _compute_gae(
         self, rewards, dones, values: torch.Tensor, last_value: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        advantages = []
-        gae = 0.0
-        next_val = last_value.item() if not dones[-1] else 0.0
-        for r, d, v in zip(reversed(rewards), reversed(dones), reversed(values.tolist())):
-            delta = r + self.gamma * next_val * (1 - float(d)) - v
-            gae = delta + self.gamma * self.gae_lambda * (1 - float(d)) * gae
-            advantages.append(gae)
-            next_val = v
-        advantages.reverse()
-        advantages = torch.tensor(advantages, dtype=torch.float32).to(last_value.device)
+        T          = len(rewards)
+        advantages = torch.zeros(T, dtype=torch.float32, device=values.device)
+        gae        = 0.0
+        next_val   = last_value.item() if not dones[-1] else 0.0
+        for t in reversed(range(T)):
+            d        = float(dones[t])
+            delta    = rewards[t] + self.gamma * next_val * (1 - d) - values[t].item()
+            gae      = delta + self.gamma * self.gae_lambda * (1 - d) * gae
+            advantages[t] = gae
+            next_val = values[t].item()
         returns = advantages + values
         return returns, advantages
