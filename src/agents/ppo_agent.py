@@ -77,14 +77,14 @@ class PPOAgent:
         self.buffer: list[dict] = []
         self.initial_hidden = None
 
-    def act(self, obs: torch.Tensor, hidden=None):
+    def act(self, image: torch.Tensor, aux_features: torch.Tensor,  hidden=None):
         """
         Sample an action from the policy.
         obs: (1, obs_dim)
         Returns: (action_idx, log_prob, value, next_hidden)
         """
         with torch.no_grad():
-            logits, value, hidden = self.policy(obs, hidden)
+            logits, value, hidden = self.policy(image, aux_features, hidden)
         dist = Categorical(logits=logits)
         action = dist.sample()
         return action.item(), dist.log_prob(action).squeeze(-1), value.squeeze(), hidden
@@ -99,18 +99,18 @@ class PPOAgent:
             h, c = hidden
             self.initial_hidden = (h.detach(), c.detach())
 
-    def store(
-        self,
-        obs: torch.Tensor,
+    def store(self,
+        image: torch.Tensor,
+        aux_features: torch.Tensor,
         action: int,
         log_prob: torch.Tensor,
         reward: float,
         value: torch.Tensor,
-        done: bool,
-    ):
+        done: bool):
         """Buffer one transition. Call after every env.step()."""
         self.buffer.append({
-            "obs":      obs,
+            "image": image.detach(),
+            "aux_features": aux_features.detach(),
             "action":   action,
             "log_prob": log_prob,
             "reward":   reward,
@@ -118,40 +118,68 @@ class PPOAgent:
             "done":     done,
         })
 
-    def update(self, next_obs: torch.Tensor, final_hidden=None) -> dict:
+    def update(
+        self,
+        next_image: torch.Tensor,
+        next_aux_features: torch.Tensor,
+        final_hidden=None,
+    ) -> dict:
         """
         Compute advantages over the stored rollout, run PPO epochs, clear the buffer.
-        next_obs:     observation after the rollout ends (for bootstrapping V(s_{T+1}))
-        final_hidden: LSTM hidden state after the last act() call
-        Returns a dict with loss components averaged over all gradient steps, for logging.
         """
         trajectory = self.buffer
-        self.buffer = []
 
         if not trajectory:
             return {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
 
-        obs      = torch.stack([t["obs"]      for t in trajectory])
-        old_lps  = torch.stack([t["log_prob"]  for t in trajectory]).detach()
-        rewards  = [t["reward"] for t in trajectory]
-        dones    = [t["done"]   for t in trajectory]
-        old_vals = torch.stack([t["value"]     for t in trajectory]).detach()
+        images = torch.stack([t["image"] for t in trajectory])
+        aux_features = torch.stack([t["aux_features"] for t in trajectory])
 
-        device  = old_vals.device
-        obs     = obs.to(device)
-        actions = torch.tensor([t["action"] for t in trajectory], dtype=torch.long, device=device)
+        old_lps = torch.stack([t["log_prob"] for t in trajectory]).detach()
+        rewards = [t["reward"] for t in trajectory]
+        dones = [t["done"] for t in trajectory]
+        old_vals = torch.stack([t["value"] for t in trajectory]).detach()
+
+        device = old_vals.device
+
+        images = images.to(device)
+        aux_features = aux_features.to(device)
+        next_image = next_image.to(device)
+        next_aux_features = next_aux_features.to(device)
+
+        actions = torch.tensor(
+            [t["action"] for t in trajectory],
+            dtype=torch.long,
+            device=device,
+        )
 
         with torch.no_grad():
-            _, last_value, _ = self.policy(next_obs.to(device), hidden=final_hidden)
+            _, last_value, _ = self.policy(
+                next_image,
+                next_aux_features,
+                hidden=final_hidden,
+            )
+
         last_value = last_value.squeeze()
 
-        returns, advantages = self._compute_gae(rewards, dones, old_vals, last_value)
-        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+        returns, advantages = self._compute_gae(
+            rewards=rewards,
+            dones=dones,
+            values=old_vals,
+            last_value=last_value,
+        )
 
-        T   = obs.shape[0]
+        if advantages.numel() > 1:
+            advantages = (advantages - advantages.mean()) / (
+                advantages.std(unbiased=False) + 1e-8
+            )
+
+        T = images.shape[0]
         seg = self.chunk_size if self.chunk_size > 0 else T
 
-        total_policy_loss = total_value_loss = total_entropy = 0.0
+        total_policy_loss = 0.0
+        total_value_loss = 0.0
+        total_entropy = 0.0
         n_updates = 0
 
         for _ in range(self.epochs):
@@ -161,62 +189,86 @@ class PPOAgent:
                 chunk_end = min(chunk_start + seg, T)
                 sl = slice(chunk_start, chunk_end)
 
-                # Forward the LSTM through this chunk step-by-step, resetting
-                # hidden state at any episode boundaries within the chunk.
-                all_logits, all_values = [], []
+                all_logits = []
+                all_values = []
+
                 for i in range(chunk_start, chunk_end):
                     if i > 0 and dones[i - 1]:
                         h = None
-                    logit, val, h = self.policy(obs[i], hidden=h)
-                    all_logits.append(logit.squeeze())
+
+                    logit, val, h = self.policy(
+                        images[i],
+                        aux_features[i],
+                        hidden=h,
+                    )
+
+                    all_logits.append(logit.squeeze(0))
                     all_values.append(val.squeeze())
 
-                logits = torch.stack(all_logits)  # (chunk, n_actions)
-                v_pred = torch.stack(all_values)  # (chunk,)
+                logits = torch.stack(all_logits)
+                v_pred = torch.stack(all_values)
 
-                dist        = Categorical(logits=logits)
-                new_lps     = dist.log_prob(actions[sl])
-                entropy     = dist.entropy().mean()
+                dist = Categorical(logits=logits)
+                new_lps = dist.log_prob(actions[sl])
+                entropy = dist.entropy().mean()
 
-                ratio  = (new_lps - old_lps[sl]).exp()
-                surr1  = ratio * advantages[sl]
-                surr2  = ratio.clamp(1 - self.clip_eps, 1 + self.clip_eps) * advantages[sl]
+                ratio = (new_lps - old_lps[sl]).exp()
+
+                surr1 = ratio * advantages[sl]
+                surr2 = ratio.clamp(
+                    1 - self.clip_eps,
+                    1 + self.clip_eps,
+                ) * advantages[sl]
+
                 policy_loss = -torch.min(surr1, surr2).mean()
 
                 if self.use_value_clip:
-                    v_clipped  = old_vals[sl] + (v_pred - old_vals[sl]).clamp(-self.value_clip_eps, self.value_clip_eps)
-                    value_loss = 0.5 * torch.max((v_pred - returns[sl]).pow(2), (v_clipped - returns[sl]).pow(2)).mean()
+                    v_clipped = old_vals[sl] + (
+                        v_pred - old_vals[sl]
+                    ).clamp(
+                        -self.value_clip_eps,
+                        self.value_clip_eps,
+                    )
+
+                    value_loss = 0.5 * torch.max(
+                        (v_pred - returns[sl]).pow(2),
+                        (v_clipped - returns[sl]).pow(2),
+                    ).mean()
                 else:
                     value_loss = 0.5 * (v_pred - returns[sl]).pow(2).mean()
 
-                loss = policy_loss + self.value_coef * value_loss - self.entropy_coef * entropy
+                loss = (
+                    policy_loss
+                    + self.value_coef * value_loss
+                    - self.entropy_coef * entropy
+                )
+
                 self.optimizer.zero_grad()
                 loss.backward()
                 nn.utils.clip_grad_norm_(self.policy.parameters(), max_norm=0.5)
                 self.optimizer.step()
 
-                # Detach hidden state between chunks so gradients don't flow
-                # across TBPTT boundaries in subsequent chunks.
                 if h is not None:
                     hh, cc = h
                     h = (hh.detach(), cc.detach())
 
                 total_policy_loss += policy_loss.item()
-                total_value_loss  += value_loss.item()
-                total_entropy     += entropy.item()
-                n_updates         += 1
+                total_value_loss += value_loss.item()
+                total_entropy += entropy.item()
+                n_updates += 1
 
         if self.scheduler is not None:
             self.scheduler.step()
 
         self.initial_hidden = None
+        self.buffer = []
 
         return {
             "policy_loss": total_policy_loss / n_updates,
-            "value_loss":  total_value_loss  / n_updates,
-            "entropy":     total_entropy      / n_updates,
+            "value_loss": total_value_loss / n_updates,
+            "entropy": total_entropy / n_updates,
         }
-
+    
     def _compute_gae(
         self, rewards, dones, values: torch.Tensor, last_value: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
