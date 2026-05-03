@@ -309,3 +309,79 @@ class ThorEnv:
             o["visible"] and self._get_distance_to_position(o["position"]) <= self.success_distance
             for o in targets
         )
+    
+    def get_aux_features(self, prev_action_idx: int | None = None) -> torch.Tensor:
+        """
+        Build non-visual features for the policy.
+
+        Returns:
+            Tensor with shape (17,):
+            - GPS position: 3
+            - compass: 2
+            - previous action one-hot: n_actions
+            - resolution level: 1
+            - remaining sensing budget: 1
+        """
+        if self.current_event is None:
+            raise RuntimeError("Environment has not been reset yet.")
+
+        metadata = self.current_event.metadata
+        agent_metadata = metadata["agent"]
+
+        position = agent_metadata["position"]
+        rotation = agent_metadata["rotation"]
+
+        gps = torch.tensor(
+            [
+                position["x"],
+                position["y"],
+                position["z"],
+            ],
+            dtype=torch.float32,
+            device=self.device,
+        )
+
+        compass = torch.tensor(
+            [
+                rotation["y"] / 360.0,
+                agent_metadata.get("cameraHorizon", 0.0) / 360.0,
+            ],
+            dtype=torch.float32,
+            device=self.device,
+        )
+
+        prev_action = torch.zeros(
+            len(self.action_list),
+            dtype=torch.float32,
+            device=self.device,
+        )
+
+        if prev_action_idx is not None:
+            prev_action[prev_action_idx] = 1.0
+
+        resolution_level = torch.tensor(
+            [
+                self._current_downgrade / max(self.base_downgrade, 1),
+            ],
+            dtype=torch.float32,
+            device=self.device,
+        )
+
+        sensing_budget = torch.tensor(
+            [
+                self._remaining_sensing_budget / max(self.max_sensing_budget, 1),
+            ],
+            dtype=torch.float32,
+            device=self.device,
+        )
+
+        return torch.cat(
+            [
+                gps,
+                compass,
+                prev_action,
+                resolution_level,
+                sensing_budget,
+            ],
+            dim=0,
+        )

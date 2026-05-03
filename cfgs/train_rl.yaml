@@ -43,6 +43,9 @@ model:
   hidden_dim: 512
   lstm_layers: 1
 
+visual_encoder:
+  model_name: dinov2_vitb14
+
 wandb:
   enabled: true
   project: ai2thor-rl

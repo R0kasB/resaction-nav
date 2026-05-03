@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "ai2thor>=5.0.0",
     "huggingface-hub>=1.12.2",
+    "ipykernel>=7.2.0",
     "numpy>=2.4.4",
     "pyyaml>=6.0.3",
     "torch>=2.11.0",

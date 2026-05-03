@@ -19,6 +19,7 @@ from tqdm import tqdm
 
 from src.agents.ppo_agent import PPOAgent
 from src.models.lstm import PolicyLSTM
+from src.models.visual_encoder import DinoV2Encoder
 from src.simulation.thor_env import RewardConfig, ThorEnv
 
 
@@ -44,8 +45,57 @@ def push_to_hub(api: HfApi, repo_id: str, local_path: str, episode: int):
         repo_type="model",
     )
 
+def build_policy_observation(
+    image: torch.Tensor,
+    env: ThorEnv,
+    visual_encoder: DinoV2Encoder,
+    prev_action_idx: int | None,
+    device: torch.device,
+) -> torch.Tensor:
+    """
+    Build the full observation expected by PolicyLSTM.
 
-def run_agent(env: ThorEnv, agent: PPOAgent, cfg: dict, start_episode: int = 0):
+    The final tensor contains:
+        - pretrained visual features
+        - GPS position
+        - compass
+        - previous action one-hot
+        - current resolution/degradation level
+        - remaining sensing budget
+
+    Returns:
+        obs: torch.Tensor of shape (1, vis_dim + aux_dim)
+    """
+    image = image.to(device)
+
+    with torch.no_grad():
+        visual_features = visual_encoder(image)
+
+    aux_features = env.get_aux_features(
+        prev_action_idx=prev_action_idx,
+    ).unsqueeze(0)
+
+    aux_features = aux_features.to(device)
+
+    obs = torch.cat(
+        [
+            visual_features,
+            aux_features,
+        ],
+        dim=-1,
+    )
+
+    return obs
+
+
+def run_agent(
+    env: ThorEnv,
+    agent: PPOAgent,
+    visual_encoder: DinoV2Encoder,
+    cfg: dict,
+    device: torch.device,
+    start_episode: int = 0,
+):
     tcfg = cfg["training"]
     scenes = tcfg["scenes"]
     num_episodes = tcfg["num_episodes"]
@@ -67,29 +117,62 @@ def run_agent(env: ThorEnv, agent: PPOAgent, cfg: dict, start_episode: int = 0):
 
     for episode in tqdm(range(start_episode, num_episodes)):
         scene = scenes[episode % len(scenes)]
-        obs = env.reset(scene)
-        obs = obs.flatten().unsqueeze(0)  # (1, obs_dim) — TODO: replace with encoder
+
+        image = env.reset(scene)
+        prev_action_idx = None
+
+        obs = build_policy_observation(
+            image=image,
+            env=env,
+            visual_encoder=visual_encoder,
+            prev_action_idx=prev_action_idx,
+            device=device,
+        )
 
         done = False
         episode_reward = 0.0
         episode_success = False
+        episode_num_sense_actions = 0
+
         hidden = None
         agent.store_initial_hidden(hidden)
 
         while not done:
             action_idx, log_prob, value, hidden = agent.act(obs, hidden)
-            next_obs, reward, terminated, truncated, info = env.step(action_idx)
-            next_obs = next_obs.flatten().unsqueeze(0)
 
-            agent.store(obs, action_idx, log_prob, reward, value, terminated or truncated)
+            next_image, reward, terminated, truncated, info = env.step(action_idx)
+
+            next_obs = build_policy_observation(
+                image=next_image,
+                env=env,
+                visual_encoder=visual_encoder,
+                prev_action_idx=action_idx,
+                device=device,
+            )
+
+            agent.store(
+                obs=obs,
+                action=action_idx,
+                log_prob=log_prob,
+                reward=reward,
+                value=value,
+                done=terminated or truncated,
+            )
+
+            if env.action_list[action_idx] == "SENSE":
+                episode_num_sense_actions += 1
 
             obs = next_obs
+            prev_action_idx = action_idx
+
             episode_reward += reward
             done = terminated or truncated
+
             if terminated and info["success"]:
                 episode_success = True
 
         loss_dict = agent.update(obs, hidden)
+
         rewards.append(episode_reward)
         episode_lengths.append(info["step"])
         successes.append(episode_success)
@@ -101,6 +184,9 @@ def run_agent(env: ThorEnv, agent: PPOAgent, cfg: dict, start_episode: int = 0):
                 "episode_length": info["step"],
                 "success": float(episode_success),
                 "success_rate_10": float(np.mean(successes[-10:])),
+                "num_sense_actions": episode_num_sense_actions,
+                "final_downgrade": info["downgrade"],
+                "final_sensing_budget": info["sensing_budget"],
                 **loss_dict,
             })
 
@@ -109,12 +195,14 @@ def run_agent(env: ThorEnv, agent: PPOAgent, cfg: dict, start_episode: int = 0):
                 f"[ep {episode:4d}] "
                 f"reward (last 10): {np.mean(rewards[-10:]):.3f} | "
                 f"steps: {np.mean(episode_lengths[-10:]):.1f} | "
-                f"success: {np.mean(successes[-10:]):.0%}"
+                f"success: {np.mean(successes[-10:]):.0%} | "
+                f"sense actions: {episode_num_sense_actions}"
             )
 
         if (episode + 1) % checkpoint_every == 0:
             ckpt_path = f"{checkpoint_dir}/ep{episode + 1}.pt"
             save_checkpoint(agent.policy, agent.optimizer, episode + 1, ckpt_path)
+
             if hf_push and hf_api and (episode + 1) % hf_push_every == 0:
                 push_to_hub(hf_api, hf_repo_id, ckpt_path, episode + 1)
 
@@ -164,15 +252,25 @@ if __name__ == "__main__":
 
     reward_cfg = RewardConfig(**env_cfg.pop("reward_cfg", {}))
     env = ThorEnv(**env_cfg, reward_cfg=reward_cfg)
+    
 
-    base_res = env.base_resolution
-    flat_obs_dim = 3 * base_res[0] * base_res[1]  # TODO: replace with encoder output dim
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    visual_encoder = DinoV2Encoder(
+        model_name=cfg.get("visual_encoder", {}).get("model_name", "dinov2_vitb14"),
+        device=device,
+    )
+
     policy = PolicyLSTM(
-        vis_dim=flat_obs_dim,
+        vis_dim=visual_encoder.output_dim,
         n_actions=len(env.action_list),
         **model_cfg,
+    ).to(device)
+
+    agent = PPOAgent(
+        policy=policy,
+        **agent_cfg,
     )
-    agent = PPOAgent(policy=policy, **agent_cfg)
 
     start_episode = 0
     resume_path = args.resume or tcfg.get("resume_from")
@@ -184,7 +282,7 @@ if __name__ == "__main__":
         print(f"Resumed from {resume_path} (episode {start_episode})")
 
     try:
-        rewards, episode_lengths, successes = run_agent(env, agent, cfg, start_episode)
+        rewards, episode_lengths, successes = run_agent(env=env, agent=agent, visual_encoder=visual_encoder, cfg=cfg, device=device, start_episode=start_episode)
         output_data(
             rewards, successes, episode_lengths,
             run_type="ppo_baseline",
