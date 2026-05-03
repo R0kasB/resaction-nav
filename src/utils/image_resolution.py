@@ -1,31 +1,32 @@
+import math
+
 import torch
 import torch.nn.functional as F
 
+
 def degrade_resolution(img: torch.Tensor, level: int) -> torch.Tensor:
     """
-    img: torch.Tensor of shape (C, 256, 256) or (1, C, 256, 256), values in [0, 1]
-    level: integer k >= 0, block size = 2^k (for 256x256, k <= 8)
-    returns: tensor with same spatial shape, where each 2^k x 2^k block is constant
+    img: (C, H, W) or (1, C, H, W), values in [0, 1]; H and W must be divisible by 2^level.
+    level: integer k >= 0, block size = 2^k; max valid level = floor(log2(min(H, W))).
+    returns: tensor with same spatial shape, each 2^k × 2^k block replaced by its average.
     """
-    if level < 0 or level > 8:
-        raise ValueError("level must be between 0 and 8 for 256x256 images")
-
-    block_size = 2 ** level
-
     squeezed = False
     if img.dim() == 3:
-        # (C, H, W) -> (1, C, H, W)
         img = img.unsqueeze(0)
         squeezed = True
 
-    if img.shape[-2:] != (256, 256):
-        raise ValueError(f"Expected image size (256, 256), got {img.shape[-2:]}")
+    _, _, H, W = img.shape
+    max_level = int(math.floor(math.log2(min(H, W))))
 
-    # Average 2^k x 2^k blocks (downsample)
-    pooled = F.avg_pool2d(img, kernel_size=block_size, stride=block_size)
+    if level < 0 or level > max_level:
+        raise ValueError(f"level must be between 0 and {max_level} for {H}×{W} images, got {level}")
 
-    # Replicate each block back to 256x256 (upsample)
-    out = F.interpolate(pooled, size=(256, 256), mode="nearest")
+    if level == 0:
+        out = img
+    else:
+        block_size = 2 ** level
+        pooled = F.avg_pool2d(img, kernel_size=block_size, stride=block_size)
+        out = F.interpolate(pooled, size=(H, W), mode="nearest")
 
     if squeezed:
         out = out.squeeze(0)

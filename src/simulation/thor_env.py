@@ -4,8 +4,9 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from ai2thor.controller import Controller
+
+from src.utils.image_resolution import degrade_resolution
 
 # https://allenai.github.io/ai2thor-v2.1.0-documentation/actions/initialization
 # https://gymnasium.farama.org/introduction/basic_usage/
@@ -228,23 +229,9 @@ class ThorEnv:
     # ------------------------------------------------------------------
 
     def _compute_obs(self) -> torch.Tensor:
-        """
-        Returns a (3, H, W) float tensor in [0, 1] at the current resolution level.
-        TODO: replace raw frame with DinoV2 features + GPS + compass + action embedding
-              (see proposal §2.1 and src/models/lstm.py for the expected input format).
-        """
-        frame = self.current_event.frame  # (H, W, 3) uint8
-        tensor = torch.from_numpy(frame).permute(2, 0, 1).float() / 255.0  # (3, H, W)
-
-        k = int(self._current_downgrade)
-        if k > 0:
-            h, w = tensor.shape[1], tensor.shape[2]
-            x = tensor.unsqueeze(0)
-            x = F.avg_pool2d(x, kernel_size=2**k, stride=2**k)
-            x = F.interpolate(x, size=(h, w), mode="nearest")
-            tensor = x.squeeze(0)
-
-        return tensor
+        frame = np.ascontiguousarray(self.current_event.frame)
+        tensor = torch.from_numpy(frame).permute(2, 0, 1).float() / 255.0
+        return degrade_resolution(tensor, int(self._current_downgrade))
 
     # ------------------------------------------------------------------
     # Target / distance helpers

@@ -11,6 +11,22 @@ class PPOAgent:
     Expects the policy network (src/models/lstm.py PolicyLSTM) to produce
     (action_logits, value, hidden) from a flat observation vector.
 
+    act(obs, hidden) -> (action_idx, log_prob, value, next_hidden)
+        obs:         flat observation tensor from the environment
+        hidden:      LSTM hidden state; pass None at episode start
+        action_idx:  discrete action int to pass to env.step()
+        log_prob:    log probability of the sampled action
+        value:       critic's state value estimate
+        next_hidden: updated LSTM hidden state
+
+    store(obs, action, log_prob, reward, value, done)
+        Buffers one transition. Call after every env.step().
+
+    update() -> {"policy_loss", "value_loss", "entropy"}
+        Computes advantages over the stored rollout, runs PPO epochs,
+        clears the buffer. Call once per episode/rollout.
+        Returns loss components averaged over epochs, for logging.
+
     Usage:
         agent = PPOAgent(policy=PolicyLSTM(...), lr=3e-4)
         action, log_prob, value, hidden = agent.act(obs, hidden)
@@ -46,7 +62,7 @@ class PPOAgent:
             logits, value, hidden = self.policy(obs, hidden)
         dist = Categorical(logits=logits)
         action = dist.sample()
-        return action.item(), dist.log_prob(action), value.squeeze(-1), hidden
+        return action.item(), dist.log_prob(action).squeeze(), value.squeeze(-1), hidden
 
     def store(
         self,
