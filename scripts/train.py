@@ -174,14 +174,7 @@ def output_data(rewards, successes, episode_lengths, run_type, params, filename)
         f.write("-" * 40 + "\n")
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--cfg", default="cfgs/train_rl.yaml", help="path to YAML config")
-    parser.add_argument("--resume", default=None, help="path to checkpoint .pt to resume from")
-    args = parser.parse_args()
-
-    cfg = load_cfg(args.cfg)
-
+def run_training_pipeline(cfg: dict, resume_path: str | None = None) -> dict:
     tcfg = cfg["training"]
     env_cfg = dict(cfg["env"])
     agent_cfg = cfg["agent"]
@@ -214,7 +207,7 @@ if __name__ == "__main__":
     agent = PPOAgent(policy=policy, **agent_cfg)
 
     start_episode = 0
-    resume_path = args.resume or tcfg.get("resume_from")
+    resume_path = resume_path or tcfg.get("resume_from")
 
     if resume_path:
         ckpt = torch.load(resume_path, map_location=device, weights_only=True)
@@ -240,9 +233,26 @@ if __name__ == "__main__":
             params=agent_cfg,
             filename=f"{tcfg['output_dir']}/training_log.txt",
         )
-
     finally:
         env.close()
 
         if wandb_cfg.get("enabled", False):
             wandb.finish()
+
+    return {
+        "episodes": len(rewards),
+        "mean_reward": float(np.mean(rewards)) if rewards else 0.0,
+        "success_rate": float(np.mean(successes)) if successes else 0.0,
+        "mean_episode_length": float(np.mean(episode_lengths)) if episode_lengths else 0.0,
+        "output_log": f"{tcfg['output_dir']}/training_log.txt",
+    }
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--cfg", default="cfgs/train_rl.yaml", help="path to YAML config")
+    parser.add_argument("--resume", default=None, help="path to checkpoint .pt to resume from")
+    args = parser.parse_args()
+
+    cfg = load_cfg(args.cfg)
+    run_training_pipeline(cfg=cfg, resume_path=args.resume)

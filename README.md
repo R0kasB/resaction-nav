@@ -41,7 +41,19 @@ uv sync
 ## Run
 
 ```bash
-uv run python scripts/<your_script>.py
+uv run python scripts/run_pipeline.py --smoke
+uv run python scripts/run_pipeline.py --cfg cfgs/train_rl.yaml
+uv run python scripts/train.py --cfg cfgs/train_rl.yaml
+```
+
+---
+
+## Tests
+
+```bash
+make test       # run all tests in tests/
+make test-e2e   # run end-to-end pipeline test only
+make test-fast  # run fast core unit tests
 ```
 
 ---
