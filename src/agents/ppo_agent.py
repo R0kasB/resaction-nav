@@ -118,14 +118,12 @@ class PPOAgent:
             "done":     done,
         })
 
-    def update(
-        self,
-        next_image: torch.Tensor,
-        next_aux_features: torch.Tensor,
-        final_hidden=None,
-    ) -> dict:
+    def update(self, next_image: torch.Tensor, next_aux_features: torch.Tensor, final_hidden=None) -> dict:
         """
-        Compute advantages over the stored rollout, run PPO epochs, clear the buffer.
+        Compute advantages over the stored rollout, run PPO updates, and clear the buffer.
+
+        The rollout stores raw images and auxiliary features separately because the policy
+        is now responsible for encoding the image internally.
         """
         trajectory = self.buffer
 
@@ -147,11 +145,7 @@ class PPOAgent:
         next_image = next_image.to(device)
         next_aux_features = next_aux_features.to(device)
 
-        actions = torch.tensor(
-            [t["action"] for t in trajectory],
-            dtype=torch.long,
-            device=device,
-        )
+        actions = torch.tensor([t["action"] for t in trajectory], dtype=torch.long, device=device,)
 
         with torch.no_grad():
             _, last_value, _ = self.policy(
@@ -162,17 +156,10 @@ class PPOAgent:
 
         last_value = last_value.squeeze()
 
-        returns, advantages = self._compute_gae(
-            rewards=rewards,
-            dones=dones,
-            values=old_vals,
-            last_value=last_value,
-        )
+        returns, advantages = self._compute_gae(rewards=rewards, dones=dones, values=old_vals, last_value=last_value)
 
         if advantages.numel() > 1:
-            advantages = (advantages - advantages.mean()) / (
-                advantages.std(unbiased=False) + 1e-8
-            )
+            advantages = (advantages - advantages.mean()) / (advantages.std(unbiased=False) + 1e-8)
 
         T = images.shape[0]
         seg = self.chunk_size if self.chunk_size > 0 else T
@@ -215,10 +202,7 @@ class PPOAgent:
                 ratio = (new_lps - old_lps[sl]).exp()
 
                 surr1 = ratio * advantages[sl]
-                surr2 = ratio.clamp(
-                    1 - self.clip_eps,
-                    1 + self.clip_eps,
-                ) * advantages[sl]
+                surr2 = ratio.clamp(1 - self.clip_eps, 1 + self.clip_eps) * advantages[sl]
 
                 policy_loss = -torch.min(surr1, surr2).mean()
 
