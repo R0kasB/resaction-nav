@@ -44,6 +44,7 @@ uv sync
 uv run python scripts/run_pipeline.py --smoke
 uv run python scripts/run_pipeline.py --cfg cfgs/train_rl.yaml
 uv run python scripts/train.py --cfg cfgs/train_rl.yaml
+sbatch scripts/run_izar_smoke.sbatch
 ```
 
 ---
@@ -91,8 +92,15 @@ make test-fast  # run fast core unit tests
 - `training.target.object_type`: target object when mode is `fixed` (e.g. `"Mug"`).
 - `training.target.cycle`: list of objects when mode is `cycle` (e.g. `["Mug", "Apple"]`).
 - `training.target.candidates`: optional whitelist passed to the environment.
+- `training.num_parallel_envs`: number of environment episodes collected concurrently before each PPO update.
+- `training.auto_cluster_run_id`: when true, append scheduler job id/rank to output/checkpoint paths to avoid collisions across parallel cluster jobs.
+- `training.run_id`: explicit run suffix (overrides auto cluster-derived suffix).
 - `env.target_object_embed_dim`: size of the target embedding appended to aux features.
   - The training pipeline enforces that model/env embedding dimensions stay aligned.
+
+**Cluster notes:**
+- Use `env.controller_kwargs.platform: CloudRendering` on headless nodes.
+- If `env.controller_kwargs.port` is set, parallel env workers auto-offset ports (`port + env_idx`) to avoid local port collisions.
 
 **Policy (`PolicyLSTM`):** LSTM network that takes the flat observation vector and outputs action logits + value estimate. Memory across timesteps matters because the scene is only partially visible at low resolution.
 

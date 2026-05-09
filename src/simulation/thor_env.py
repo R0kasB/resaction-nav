@@ -78,6 +78,7 @@ class ThorEnv:
         look_degrees=15.0,
         visibility_distance=1.5,
         target_object_embed_dim=8,
+        controller_kwargs=None,
         device=None,
         seed=0,
         reward_cfg: RewardConfig = None,
@@ -119,13 +120,17 @@ class ThorEnv:
             "LookDown":    {"degrees": look_degrees},
         }
 
-        self.controller = Controller(
-            width=base_resolution[0],
-            height=base_resolution[1],
-            visibilityDistance=visibility_distance,
-            renderDepthImage=False,
-            renderInstanceSegmentation=False,
-        )
+        controller_options = {
+            "width": base_resolution[0],
+            "height": base_resolution[1],
+            "visibilityDistance": visibility_distance,
+            "renderDepthImage": False,
+            "renderInstanceSegmentation": False,
+        }
+        if controller_kwargs:
+            controller_options.update(controller_kwargs)
+
+        self.controller = Controller(**controller_options)
 
         # episode state — populated by reset()
         self._step_count = 0

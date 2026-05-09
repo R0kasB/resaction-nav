@@ -45,12 +45,15 @@ def _import_train_module():
 
 class _FakeEnv:
     reset_targets = []
+    init_ports = []
 
     def __init__(self, *args, **kwargs):
         self.action_list = ["MoveAhead", "SENSE", "DONE"]
         self.action2id = {name: idx for idx, name in enumerate(self.action_list)}
         self._step = 0
         self.target_object_embed_dim = kwargs.get("target_object_embed_dim", 8)
+        controller_kwargs = kwargs.get("controller_kwargs") or {}
+        _FakeEnv.init_ports.append(controller_kwargs.get("port"))
 
     def reset(self, scene, target_obj_type=None):
         self._step = 0
@@ -108,6 +111,7 @@ def test_run_pipeline_end_to_end_with_smoke_mode(tmp_path, monkeypatch):
     monkeypatch.setattr(train_module, "ThorEnv", _FakeEnv)
     monkeypatch.setattr(train_module, "AgentPolicy", _FakePolicy)
     _FakeEnv.reset_targets = []
+    _FakeEnv.init_ports = []
     _FakePolicy.last_target_object_embed_dim = None
 
     run_pipeline_module = _import_module_from_path(
@@ -120,6 +124,7 @@ def test_run_pipeline_end_to_end_with_smoke_mode(tmp_path, monkeypatch):
         "training": {
             "scenes": ["FakeScene"],
             "num_episodes": 5,
+            "num_parallel_envs": 2,
             "print_every": 1,
             "checkpoint_every": 1,
             "output_dir": str(tmp_path / "output"),
@@ -135,6 +140,7 @@ def test_run_pipeline_end_to_end_with_smoke_mode(tmp_path, monkeypatch):
             "base_resolution": [64, 64],
             "max_steps": 10,
             "target_object_embed_dim": 6,
+            "controller_kwargs": {"port": 8200},
             "reward_cfg": {},
         },
         "agent": {
@@ -168,6 +174,7 @@ def test_run_pipeline_end_to_end_with_smoke_mode(tmp_path, monkeypatch):
     assert Path(summary["output_log"]).exists()
     assert list((tmp_path / "checkpoints" / "smoke").glob("*.pt"))
     assert _FakeEnv.reset_targets == ["Mug", "Mug"]
+    assert _FakeEnv.init_ports == [8200, 8201]
     assert _FakePolicy.last_target_object_embed_dim == 6
 
 
