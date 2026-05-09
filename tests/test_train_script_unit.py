@@ -1,6 +1,9 @@
 import importlib.util
 from pathlib import Path
+import sys
+import types
 
+import pytest
 import torch
 import yaml
 
@@ -10,7 +13,23 @@ def _import_train_module():
     spec = importlib.util.spec_from_file_location("train_script", module_path)
     module = importlib.util.module_from_spec(spec)
     assert spec is not None and spec.loader is not None
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    except ModuleNotFoundError as exc:
+        if exc.name != "ai2thor":
+            raise
+        ai2thor = types.ModuleType("ai2thor")
+        controller_mod = types.ModuleType("ai2thor.controller")
+
+        class _DummyController:
+            def __init__(self, *args, **kwargs):
+                pass
+
+        controller_mod.Controller = _DummyController
+        ai2thor.controller = controller_mod
+        sys.modules["ai2thor"] = ai2thor
+        sys.modules["ai2thor.controller"] = controller_mod
+        spec.loader.exec_module(module)
     return module
 
 
@@ -56,3 +75,35 @@ def test_output_data_creates_metrics_log(tmp_path):
     assert "Type: ppo_dynamic_resolution" in content
     assert "Episodes: 3" in content
     assert "Mean Reward" in content
+
+
+def test_resolve_target_setup_fixed_mode_sets_env_candidates():
+    train_module = _import_train_module()
+    env_cfg = {"target_object_types": None}
+    fixed, cycle = train_module._resolve_target_setup(
+        training_cfg={
+            "target": {
+                "mode": "fixed",
+                "object_type": "Mug",
+                "candidates": ["Mug", "Apple"],
+            }
+        },
+        env_cfg=env_cfg,
+    )
+    assert fixed == "Mug"
+    assert cycle is None
+    assert env_cfg["target_object_types"] == ["Mug", "Apple"]
+
+
+def test_resolve_target_setup_cycle_requires_non_empty_cycle():
+    train_module = _import_train_module()
+    with pytest.raises(ValueError, match="non-empty list"):
+        train_module._resolve_target_setup(
+            training_cfg={
+                "target": {
+                    "mode": "cycle",
+                    "cycle": [],
+                }
+            },
+            env_cfg={},
+        )

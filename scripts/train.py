@@ -12,7 +12,6 @@ from pathlib import Path
 
 import numpy as np
 import torch
-import wandb
 import yaml
 from huggingface_hub import HfApi
 from tqdm import tqdm
@@ -20,6 +19,11 @@ from tqdm import tqdm
 from src.agents.ppo_agent import PPOAgent
 from src.models.agent_policy import AgentPolicy
 from src.simulation.thor_env import RewardConfig, ThorEnv
+
+try:
+    import wandb
+except Exception:  # pragma: no cover - optional dependency in test/runtime environments
+    wandb = None
 
 
 def load_cfg(path: str) -> dict:
@@ -45,7 +49,78 @@ def push_to_hub(api: HfApi, repo_id: str, local_path: str, episode: int):
     )
 
 
-def run_agent(env: ThorEnv, agent: PPOAgent, cfg: dict, device: torch.device, start_episode: int = 0):
+def _resolve_target_setup(training_cfg: dict, env_cfg: dict) -> tuple[str | None, list[str] | None]:
+    target_cfg = training_cfg.get("target")
+    fixed_target_object = None
+    target_object_cycle = None
+
+    # Backward compatibility with older flat config keys.
+    if target_cfg is None:
+        fixed_target_object = training_cfg.get("target_object_type")
+        target_object_cycle = training_cfg.get("target_object_cycle")
+        if fixed_target_object and target_object_cycle:
+            raise ValueError("Use either training.target_object_type or training.target_object_cycle, not both.")
+        if target_object_cycle is not None and len(target_object_cycle) == 0:
+            raise ValueError("training.target_object_cycle cannot be empty.")
+        return fixed_target_object, target_object_cycle
+
+    mode = target_cfg.get("mode", "random")
+    candidates = target_cfg.get("candidates")
+    object_type = target_cfg.get("object_type")
+    cycle = target_cfg.get("cycle")
+
+    if mode == "fixed":
+        if not object_type:
+            raise ValueError("training.target.object_type is required when mode='fixed'.")
+        fixed_target_object = object_type
+    elif mode == "cycle":
+        if not cycle:
+            raise ValueError("training.target.cycle must be a non-empty list when mode='cycle'.")
+        target_object_cycle = list(cycle)
+    elif mode == "random":
+        pass
+    else:
+        raise ValueError(f"Unsupported training.target.mode: {mode!r}")
+
+    if candidates is not None and len(candidates) == 0:
+        raise ValueError("training.target.candidates cannot be empty when provided.")
+
+    derived_candidates = None
+    if mode == "fixed":
+        derived_candidates = [fixed_target_object]
+    elif mode == "cycle":
+        derived_candidates = list(dict.fromkeys(target_object_cycle))
+
+    if candidates is None:
+        candidates = derived_candidates
+    elif mode == "fixed" and fixed_target_object not in candidates:
+        raise ValueError("training.target.object_type must be included in training.target.candidates.")
+    elif mode == "cycle":
+        missing = [obj for obj in target_object_cycle if obj not in candidates]
+        if missing:
+            raise ValueError("All training.target.cycle objects must be included in training.target.candidates.")
+
+    env_candidates = env_cfg.get("target_object_types")
+    if candidates is not None:
+        if env_candidates is not None and list(env_candidates) != list(candidates):
+            raise ValueError(
+                "Conflicting target candidates: use training.target.candidates as the single source of truth "
+                "or make env.target_object_types match exactly."
+            )
+        env_cfg["target_object_types"] = list(candidates)
+
+    return fixed_target_object, target_object_cycle
+
+
+def run_agent(
+    env: ThorEnv,
+    agent: PPOAgent,
+    cfg: dict,
+    device: torch.device,
+    start_episode: int = 0,
+    fixed_target_object: str | None = None,
+    target_object_cycle: list[str] | None = None,
+):
     tcfg = cfg["training"]
     scenes = tcfg["scenes"]
     num_episodes = tcfg["num_episodes"]
@@ -60,6 +135,8 @@ def run_agent(env: ThorEnv, agent: PPOAgent, cfg: dict, device: torch.device, st
     hf_api = HfApi() if hf_push else None
 
     use_wandb = cfg.get("wandb", {}).get("enabled", False)
+    if use_wandb and wandb is None:
+        raise RuntimeError("wandb logging is enabled, but wandb could not be imported.")
 
     rewards = []
     episode_lengths = []
@@ -67,8 +144,11 @@ def run_agent(env: ThorEnv, agent: PPOAgent, cfg: dict, device: torch.device, st
 
     for episode in tqdm(range(start_episode, num_episodes)):
         scene = scenes[episode % len(scenes)]
+        target_obj_type = fixed_target_object
+        if target_object_cycle:
+            target_obj_type = target_object_cycle[episode % len(target_object_cycle)]
 
-        image = env.reset(scene).to(device)
+        image = env.reset(scene, target_obj_type=target_obj_type).to(device)
         prev_action_idx = None
         aux_features = env.get_aux_features(prev_action_idx=prev_action_idx).to(device)
 
@@ -117,7 +197,7 @@ def run_agent(env: ThorEnv, agent: PPOAgent, cfg: dict, device: torch.device, st
         episode_lengths.append(info["step"])
         successes.append(episode_success)
 
-        if use_wandb:
+        if use_wandb and wandb is not None:
             wandb.log({
                 "episode": episode,
                 "reward": episode_reward,
@@ -185,6 +265,8 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None) -> dict:
     Path(tcfg["output_dir"]).mkdir(parents=True, exist_ok=True)
 
     if wandb_cfg.get("enabled", False):
+        if wandb is None:
+            raise RuntimeError("wandb is enabled in config, but wandb could not be imported.")
         wandb.init(
             project=wandb_cfg["project"],
             entity=wandb_cfg.get("entity"),
@@ -194,8 +276,22 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None) -> dict:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    fixed_target_object, target_object_cycle = _resolve_target_setup(
+        training_cfg=tcfg,
+        env_cfg=env_cfg,
+    )
+
     reward_cfg = RewardConfig(**env_cfg.pop("reward_cfg", {}))
     env = ThorEnv(**env_cfg, reward_cfg=reward_cfg)
+    env_target_embed_dim = int(getattr(env, "target_object_embed_dim", 0))
+
+    model_target_embed_dim = model_cfg.get("target_object_embed_dim")
+    if model_target_embed_dim is not None and int(model_target_embed_dim) != env_target_embed_dim:
+        raise ValueError(
+            "model.target_object_embed_dim must match env.target_object_embed_dim. "
+            f"Got model={model_target_embed_dim}, env={env_target_embed_dim}."
+        )
+    model_cfg["target_object_embed_dim"] = env_target_embed_dim
 
     policy = AgentPolicy(
         n_actions=len(env.action_list),
@@ -223,6 +319,8 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None) -> dict:
             cfg=cfg,
             device=device,
             start_episode=start_episode,
+            fixed_target_object=fixed_target_object,
+            target_object_cycle=target_object_cycle,
         )
 
         output_data(
@@ -236,7 +334,7 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None) -> dict:
     finally:
         env.close()
 
-        if wandb_cfg.get("enabled", False):
+        if wandb_cfg.get("enabled", False) and wandb is not None:
             wandb.finish()
 
     return {

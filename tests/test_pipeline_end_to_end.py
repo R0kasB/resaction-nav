@@ -44,17 +44,21 @@ def _import_train_module():
 
 
 class _FakeEnv:
+    reset_targets = []
+
     def __init__(self, *args, **kwargs):
         self.action_list = ["MoveAhead", "SENSE", "DONE"]
         self.action2id = {name: idx for idx, name in enumerate(self.action_list)}
         self._step = 0
+        self.target_object_embed_dim = kwargs.get("target_object_embed_dim", 8)
 
     def reset(self, scene, target_obj_type=None):
         self._step = 0
+        _FakeEnv.reset_targets.append(target_obj_type)
         return torch.rand(3, 8, 8)
 
     def get_aux_features(self, prev_action_idx=None):
-        return torch.zeros(3 + 2 + len(self.action_list) + 1 + 1)
+        return torch.zeros(3 + 2 + len(self.action_list) + 1 + 1 + self.target_object_embed_dim)
 
     def step(self, action_idx):
         self._step += 1
@@ -75,11 +79,14 @@ class _FakeEnv:
 
 
 class _FakePolicy(nn.Module):
-    def __init__(self, n_actions: int, **kwargs):
+    last_target_object_embed_dim = None
+
+    def __init__(self, n_actions: int, target_object_embed_dim: int = 8, **kwargs):
         super().__init__()
         self.n_actions = n_actions
+        _FakePolicy.last_target_object_embed_dim = target_object_embed_dim
         self.backbone = nn.Sequential(
-            nn.Linear(3 * 8 * 8 + (3 + 2 + n_actions + 1 + 1), 32),
+            nn.Linear(3 * 8 * 8 + (3 + 2 + n_actions + 1 + 1 + target_object_embed_dim), 32),
             nn.Tanh(),
         )
         self.pi = nn.Linear(32, n_actions)
@@ -100,6 +107,8 @@ def test_run_pipeline_end_to_end_with_smoke_mode(tmp_path, monkeypatch):
     train_module = _import_train_module()
     monkeypatch.setattr(train_module, "ThorEnv", _FakeEnv)
     monkeypatch.setattr(train_module, "AgentPolicy", _FakePolicy)
+    _FakeEnv.reset_targets = []
+    _FakePolicy.last_target_object_embed_dim = None
 
     run_pipeline_module = _import_module_from_path(
         Path(__file__).resolve().parents[1] / "scripts" / "run_pipeline.py",
@@ -116,10 +125,16 @@ def test_run_pipeline_end_to_end_with_smoke_mode(tmp_path, monkeypatch):
             "output_dir": str(tmp_path / "output"),
             "checkpoint_dir": str(tmp_path / "checkpoints"),
             "resume_from": None,
+            "target": {
+                "mode": "fixed",
+                "object_type": "Mug",
+                "candidates": ["Mug", "Apple"],
+            },
         },
         "env": {
             "base_resolution": [64, 64],
             "max_steps": 10,
+            "target_object_embed_dim": 6,
             "reward_cfg": {},
         },
         "agent": {
@@ -152,6 +167,8 @@ def test_run_pipeline_end_to_end_with_smoke_mode(tmp_path, monkeypatch):
     assert summary["episodes"] == 2
     assert Path(summary["output_log"]).exists()
     assert list((tmp_path / "checkpoints" / "smoke").glob("*.pt"))
+    assert _FakeEnv.reset_targets == ["Mug", "Mug"]
+    assert _FakePolicy.last_target_object_embed_dim == 6
 
 
 def test_apply_smoke_overrides_sets_small_runtime_defaults():
