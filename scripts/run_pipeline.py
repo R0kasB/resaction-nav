@@ -2,8 +2,8 @@
 Unified training pipeline launcher.
 
 Usage:
-  uv run python scripts/run_pipeline.py --smoke
-  uv run python scripts/run_pipeline.py --cfg cfgs/train_rl.yaml
+  uv run python scripts/run_pipeline.py --cfg cfgs/train_rl.yaml --agent <agent-name>
+  uv run python scripts/run_pipeline.py --cfg cfgs/train_rl.yaml --agent <agent-name> --smoke
 """
 
 from __future__ import annotations
@@ -29,9 +29,9 @@ def apply_smoke_overrides(cfg: dict) -> dict:
     smoke_cfg.setdefault("training", {})
     output_dir = Path(smoke_cfg["training"].get("output_dir", "output")) / "smoke"
     checkpoint_dir = Path(smoke_cfg["training"].get("checkpoint_dir", "checkpoints")) / "smoke"
-    smoke_cfg["training"]["num_episodes"] = 2
+    smoke_cfg["training"]["num_episodes"] = 10
     smoke_cfg["training"]["print_every"] = 1
-    smoke_cfg["training"]["checkpoint_every"] = 1
+    smoke_cfg["training"]["checkpoint_every"] = 9999
     smoke_cfg["training"]["output_dir"] = str(output_dir)
     smoke_cfg["training"]["checkpoint_dir"] = str(checkpoint_dir)
     smoke_cfg["training"]["resume_from"] = None
@@ -49,18 +49,24 @@ def apply_smoke_overrides(cfg: dict) -> dict:
     return smoke_cfg
 
 
-def run_pipeline(cfg_path: str, resume: str | None = None, smoke: bool = False) -> dict:
+def run_pipeline(cfg_path: str, resume: str | None = None, smoke: bool = False, agent_type: str | None = None) -> dict:
     train_module = _load_train_module()
     cfg = train_module.load_cfg(cfg_path)
     if smoke:
         cfg = apply_smoke_overrides(cfg)
-    return train_module.run_training_pipeline(cfg=cfg, resume_path=resume)
+    return train_module.run_training_pipeline(cfg=cfg, resume_path=resume, agent_type=agent_type)
 
 
 def parse_args() -> argparse.Namespace:
+    _train        = _load_train_module()
+    agent_choices = list(_train.AGENT_REGISTRY.keys())
+
+
     parser = argparse.ArgumentParser(description="Run the full resaction-nav training pipeline.")
     parser.add_argument("--cfg", default="cfgs/train_rl.yaml", help="Path to YAML config.")
     parser.add_argument("--resume", default=None, help="Path to checkpoint .pt to resume from.")
+    parser.add_argument("--agent", default=None, choices=agent_choices, help=f"Agent type (overrides config agent_type). Choices: {agent_choices}")
+
     parser.add_argument(
         "--smoke",
         action="store_true",
@@ -71,7 +77,7 @@ def parse_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = parse_args()
-    summary = run_pipeline(cfg_path=args.cfg, resume=args.resume, smoke=args.smoke)
+    summary = run_pipeline(cfg_path=args.cfg, resume=args.resume, smoke=args.smoke, agent_type=args.agent)    
     print(
         "Pipeline done | "
         f"episodes={summary['episodes']} "

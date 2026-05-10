@@ -5,6 +5,8 @@ Usage:
     uv run python scripts/train.py
     uv run python scripts/train.py --cfg cfgs/train_rl.yaml
     uv run python scripts/train.py --cfg cfgs/train_rl.yaml --resume checkpoints/ep100.pt
+    or 
+    sbatch train_all.sh to train adaptative agent + 4 baselines
 """
 
 import argparse
@@ -17,9 +19,35 @@ import yaml
 from huggingface_hub import HfApi
 from tqdm import tqdm
 
+from src.agents.baselines import (
+    LowResBaseline,
+    HighResBaseline,
+    RandomSensingBaseline,
+    FixedScheduleBaseline,
+)
+
 from src.agents.ppo_agent import PPOAgent
 from src.models.agent_policy import AgentPolicy
 from src.simulation.thor_env import RewardConfig, ThorEnv
+
+
+AGENT_REGISTRY = {
+    "adaptive":       PPOAgent,               # default: full adaptive PPO
+    "low_res":        LowResBaseline,
+    "high_res":       HighResBaseline,
+    "random_sensing": RandomSensingBaseline,
+    "fixed_schedule": FixedScheduleBaseline,
+}
+
+def build_agent(agent_type: str, **kwargs):
+    """Instantiate the right agent from a string key."""
+    if agent_type not in AGENT_REGISTRY:
+        raise ValueError(
+            f"Unknown agent_type '{agent_type}'. "
+            f"Choose from: {list(AGENT_REGISTRY.keys())}"
+        )
+    return AGENT_REGISTRY[agent_type](**kwargs)
+ 
 
 
 def load_cfg(path: str) -> dict:
@@ -29,12 +57,13 @@ def load_cfg(path: str) -> dict:
 
 def save_checkpoint(policy, optimizer, episode, path):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = str(path) + ".tmp"
     torch.save({
-        "policy": policy.state_dict(),
+        "policy":    policy.state_dict(),
         "optimizer": optimizer.state_dict(),
-        "episode": episode,
-    }, path)
-
+        "episode":   episode,
+    }, tmp_path)
+    Path(tmp_path).rename(path)
 
 def push_to_hub(api: HfApi, repo_id: str, local_path: str, episode: int):
     api.upload_file(
@@ -174,13 +203,18 @@ def output_data(rewards, successes, episode_lengths, run_type, params, filename)
         f.write("-" * 40 + "\n")
 
 
-def run_training_pipeline(cfg: dict, resume_path: str | None = None) -> dict:
+def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type: str | None = None) -> dict:
     tcfg = cfg["training"]
     env_cfg = dict(cfg["env"])
     agent_cfg = cfg["agent"]
     model_cfg = cfg.get("model", {})
     wandb_cfg = cfg.get("wandb", {})
 
+    if agent_type is None:
+        agent_type = cfg.get("agent_type", "adaptive")
+
+    tcfg["checkpoint_dir"] = str(Path(tcfg["checkpoint_dir"]) / agent_type)
+    tcfg["output_dir"]     = str(Path(tcfg["output_dir"])     / agent_type)
     Path(tcfg["checkpoint_dir"]).mkdir(parents=True, exist_ok=True)
     Path(tcfg["output_dir"]).mkdir(parents=True, exist_ok=True)
 
@@ -188,9 +222,10 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None) -> dict:
         wandb.init(
             project=wandb_cfg["project"],
             entity=wandb_cfg.get("entity"),
-            name=wandb_cfg.get("run_name"),
-            config=cfg,
+            name=wandb_cfg.get("run_name", agent_type),
+            config={**cfg, "agent_type": agent_type},
         )
+
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -204,7 +239,7 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None) -> dict:
         device=device,
     ).to(device)
 
-    agent = PPOAgent(policy=policy, **agent_cfg)
+    agent = build_agent(agent_type, policy=policy, **agent_cfg)
 
     start_episode = 0
     resume_path = resume_path or tcfg.get("resume_from")
@@ -229,7 +264,7 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None) -> dict:
             rewards=rewards,
             successes=successes,
             episode_lengths=episode_lengths,
-            run_type="ppo_dynamic_resolution",
+            run_type=agent_type,
             params=agent_cfg,
             filename=f"{tcfg['output_dir']}/training_log.txt",
         )
@@ -252,7 +287,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--cfg", default="cfgs/train_rl.yaml", help="path to YAML config")
     parser.add_argument("--resume", default=None, help="path to checkpoint .pt to resume from")
+    parser.add_argument("--agent", default=None, choices=list(AGENT_REGISTRY.keys()), help="agent type (overrides config agent_type field)")
+
     args = parser.parse_args()
 
     cfg = load_cfg(args.cfg)
-    run_training_pipeline(cfg=cfg, resume_path=args.resume)
+    run_training_pipeline(cfg=cfg, resume_path=args.resume, agent_type=args.agent)

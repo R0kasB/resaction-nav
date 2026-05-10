@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 from ai2thor.controller import Controller
+from ai2thor.platform import CloudRendering
 
 from src.utils.image_resolution import degrade_resolution
 
@@ -122,6 +123,8 @@ class ThorEnv:
             visibilityDistance=visibility_distance,
             renderDepthImage=False,
             renderInstanceSegmentation=False,
+            platform=CloudRendering,
+            gpu_device=0,
         )
 
         # episode state — populated by reset()

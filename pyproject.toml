@@ -16,7 +16,6 @@ dependencies = [
     "wandb>=0.26.1",
 ]
 
-[dependency-groups]
-dev = [
-    "pytest>=9.0.3",
-]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src", "src*"]
