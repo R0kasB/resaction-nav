@@ -30,6 +30,7 @@ from src.agents.baselines import (
 from src.agents.ppo_agent import PPOAgent
 from src.models.agent_policy import AgentPolicy
 from src.simulation.thor_env import RewardConfig, ThorEnv
+from src.utils.trajectory_logger import TrajectoryLogger
 
 try:
     import wandb
@@ -190,6 +191,7 @@ def run_agent(
     start_episode: int = 0,
     fixed_target_object: str | None = None,
     target_object_cycle: list[str] | None = None,
+    trajectory_logger: TrajectoryLogger | None = None,
 ):
     tcfg = cfg["training"]
     scenes = tcfg["scenes"]
@@ -245,6 +247,8 @@ def run_agent(
 
             image = env.reset(scene, target_obj_type=target_obj_type).to(device)
             aux_features = env.get_aux_features(prev_action_idx=None).to(device)
+            if trajectory_logger is not None:
+                trajectory_logger.save_layout_once(scene, env)
             slots.append(
                 {
                     "env": env,
@@ -306,8 +310,15 @@ def run_agent(
                     }
                 )
 
-                if slot["env"].action_list[slot["pending_action_idx"]] == "SENSE":
+                action_name = slot["env"].action_list[slot["pending_action_idx"]]
+                if action_name == "SENSE":
                     slot["episode_num_sense_actions"] += 1
+                if trajectory_logger is not None:
+                    trajectory_logger.log_step(
+                        slot["episode"], info["step"],
+                        slot["env"].scene, slot["env"].target_obj_type,
+                        slot["env"], action_name, reward, info,
+                    )
 
                 slot["image"] = next_image
                 slot["aux_features"] = next_aux_features
@@ -343,6 +354,9 @@ def run_agent(
             next_aux_features=final_slot["final_aux_features"],
             final_hidden=final_slot["final_hidden"],
         )
+
+        if trajectory_logger is not None:
+            trajectory_logger.flush()
 
         for slot in slots:
             current_episode = slot["episode"]
@@ -496,6 +510,11 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
         start_episode = ckpt["episode"]
         print(f"Resumed from {resume_path} (episode {start_episode})")
 
+    traj_logger = TrajectoryLogger.from_cfg(
+        output_dir=tcfg["output_dir"],
+        traj_cfg=cfg.get("trajectory_logging", {}),
+    )
+
     try:
         rewards, episode_lengths, successes = run_agent(
             envs=envs,
@@ -505,6 +524,7 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
             start_episode=start_episode,
             fixed_target_object=fixed_target_object,
             target_object_cycle=target_object_cycle,
+            trajectory_logger=traj_logger,
         )
 
         output_data(
@@ -516,6 +536,8 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
             filename=f"{tcfg['output_dir']}/training_log.txt",
         )
     finally:
+        if traj_logger is not None:
+            traj_logger.close()
         for env in envs:
             env.close()
 

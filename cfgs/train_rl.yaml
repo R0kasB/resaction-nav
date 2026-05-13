@@ -64,6 +64,16 @@ wandb:
   entity: r0kasb-epfl
   run_name: exp2
 
+trajectory_logging:
+  enabled: false          # set to true to write per-step CSV + scene layouts
+  fields:
+    position: true        # x, y, z
+    rotation: true        # rotation_y, camera_horizon
+    action: true          # action name
+    downgrade: true       # resolution level
+    sensing_budget: true  # remaining budget
+    reward: true          # per-step reward
+
 huggingface:
   repo_id: R0kasB/resaction-nav
   push: false
