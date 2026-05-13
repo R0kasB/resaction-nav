@@ -61,7 +61,7 @@ visual_encoder:
 wandb:
   enabled: true
   project: ai2thor-rl
-  entity: rokasbertasius33
+  entity: r0kasb-epfl
   run_name: exp1
 
 huggingface:
