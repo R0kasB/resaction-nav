@@ -1,0 +1,61 @@
+Starting agent: adaptive
+Job ID: 2894815
+Array task: 0
+Node: i05
+vulkaninfo stub: /home/bertasiu/bin/vulkaninfo
+stub output: GPU0:
+        deviceUUID = ac481a8c-1e70-f314-58a5-08eb50ffe277
+Config: cfgs/train_rl.rokas_task0.generated.yaml  base_port: 8200
+[ep    0] reward (last 10): -1.004 | steps: 3.0 | success: 0% | sense actions: 0
+[ep   10] reward (last 10): -1.074 | steps: 10.2 | success: 0% | sense actions: 5
+[ep   20] reward (last 10): -1.285 | steps: 22.4 | success: 0% | sense actions: 0
+[ep   30] reward (last 10): -1.157 | steps: 19.8 | success: 0% | sense actions: 0
+[ep   40] reward (last 10): -1.066 | steps: 8.0 | success: 0% | sense actions: 1
+[ep   50] reward (last 10): -1.105 | steps: 10.5 | success: 0% | sense actions: 0
+[ep   60] reward (last 10): -1.031 | steps: 5.8 | success: 0% | sense actions: 0
+[ep   70] reward (last 10): -1.005 | steps: 2.4 | success: 0% | sense actions: 0
+[ep   80] reward (last 10): -1.010 | steps: 2.4 | success: 0% | sense actions: 0
+[ep   90] reward (last 10): -1.004 | steps: 1.6 | success: 0% | sense actions: 0
+[ep  100] reward (last 10): -1.004 | steps: 1.5 | success: 0% | sense actions: 0
+[ep  110] reward (last 10): -1.001 | steps: 1.3 | success: 0% | sense actions: 0
+[ep  120] reward (last 10): -1.000 | steps: 1.1 | success: 0% | sense actions: 0
+[ep  130] reward (last 10): -1.000 | steps: 1.2 | success: 0% | sense actions: 0
+[ep  140] reward (last 10): -1.000 | steps: 1.2 | success: 0% | sense actions: 0
+[ep  150] reward (last 10): -1.001 | steps: 1.5 | success: 0% | sense actions: 0
+[ep  160] reward (last 10): -1.000 | steps: 1.0 | success: 0% | sense actions: 0
+[ep  170] reward (last 10): -1.000 | steps: 1.1 | success: 0% | sense actions: 0
+[ep  180] reward (last 10): -1.000 | steps: 1.1 | success: 0% | sense actions: 0
+[ep  190] reward (last 10): -1.000 | steps: 1.2 | success: 0% | sense actions: 0
+[ep  200] reward (last 10): -1.000 | steps: 1.0 | success: 0% | sense actions: 0
+[ep  210] reward (last 10): -1.000 | steps: 1.1 | success: 0% | sense actions: 0
+[ep  220] reward (last 10): -1.000 | steps: 1.0 | success: 0% | sense actions: 0
+[ep  230] reward (last 10): -1.000 | steps: 1.1 | success: 0% | sense actions: 0
+[ep  240] reward (last 10): -1.001 | steps: 1.3 | success: 0% | sense actions: 0
+[ep  250] reward (last 10): -1.000 | steps: 1.2 | success: 0% | sense actions: 0
+[ep  260] reward (last 10): -1.000 | steps: 1.0 | success: 0% | sense actions: 0
+[ep  270] reward (last 10): -1.000 | steps: 1.0 | success: 0% | sense actions: 0
+[ep  280] reward (last 10): -1.000 | steps: 1.1 | success: 0% | sense actions: 0
+[ep  290] reward (last 10): -1.000 | steps: 1.1 | success: 0% | sense actions: 0
+[ep  300] reward (last 10): -1.002 | steps: 1.2 | success: 0% | sense actions: 0
+[ep  310] reward (last 10): -1.000 | steps: 1.0 | success: 0% | sense actions: 0
+[ep  320] reward (last 10): -1.000 | steps: 1.2 | success: 0% | sense actions: 0
+[ep  330] reward (last 10): -1.000 | steps: 1.1 | success: 0% | sense actions: 0
+[ep  340] reward (last 10): -1.000 | steps: 1.0 | success: 0% | sense actions: 0
+[ep  350] reward (last 10): -1.000 | steps: 1.0 | success: 0% | sense actions: 0
+[ep  360] reward (last 10): -1.002 | steps: 1.1 | success: 0% | sense actions: 1
+[ep  370] reward (last 10): -1.000 | steps: 1.2 | success: 0% | sense actions: 0
+[ep  380] reward (last 10): -1.000 | steps: 1.1 | success: 0% | sense actions: 0
+[ep  390] reward (last 10): -1.000 | steps: 1.0 | success: 0% | sense actions: 0
+[ep  400] reward (last 10): -1.000 | steps: 1.0 | success: 0% | sense actions: 0
+[ep  410] reward (last 10): -1.000 | steps: 1.0 | success: 0% | sense actions: 0
+[ep  420] reward (last 10): -1.000 | steps: 1.0 | success: 0% | sense actions: 0
+[ep  430] reward (last 10): -1.002 | steps: 1.2 | success: 0% | sense actions: 1
+[ep  440] reward (last 10): -1.000 | steps: 1.2 | success: 0% | sense actions: 0
+[ep  450] reward (last 10): -1.000 | steps: 1.1 | success: 0% | sense actions: 0
+[ep  460] reward (last 10): -1.002 | steps: 1.3 | success: 0% | sense actions: 0
+[ep  470] reward (last 10): -1.000 | steps: 1.1 | success: 0% | sense actions: 0
+[ep  480] reward (last 10): -1.000 | steps: 1.0 | success: 0% | sense actions: 0
+[ep  490] reward (last 10): -1.000 | steps: 1.2 | success: 0% | sense actions: 0
+Cluster run id: job-2894815-rank-0
+Pipeline done | episodes=500 mean_reward=-1.015 success_rate=0.0% log=output/job-2894815-rank-0/adaptive/training_log.txt
+Done: adaptive

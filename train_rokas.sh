@@ -35,8 +35,10 @@ mkdir -p "$HOME/bin" .venv/bin
 for _stub_dest in "$HOME/bin/vulkaninfo" ".venv/bin/vulkaninfo"; do
 cat > "$_stub_dest" << 'STUB'
 #!/bin/bash
+# Store regex in variable: bare ) inside [[ =~ ]] confuses bash's parser.
+_re='GPU ([0-9]+):.+UUID: GPU-([^)]+)'
 nvidia-smi -L 2>/dev/null | while IFS= read -r line; do
-    if [[ "$line" =~ GPU\ ([0-9]+):.+UUID:\ GPU-([^)]+) ]]; then
+    if [[ "$line" =~ $_re ]]; then
         echo "GPU${BASH_REMATCH[1]}:"
         echo "        deviceUUID = ${BASH_REMATCH[2]}"
     fi

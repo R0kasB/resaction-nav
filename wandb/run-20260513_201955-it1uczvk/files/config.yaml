@@ -1,0 +1,176 @@
+_wandb:
+    value:
+        cli_version: 0.26.1
+        e:
+            l4yt4lk8lmbzfwlsevv88ta2vkp17h83:
+                args:
+                    - --cfg
+                    - cfgs/train_rl.rokas_task0.generated.yaml
+                    - --agent
+                    - adaptive
+                codePath: scripts/run_pipeline.py
+                codePathLocal: scripts/run_pipeline.py
+                cpu_count: 40
+                cpu_count_logical: 40
+                cudaVersion: "12.2"
+                disk:
+                    /:
+                        total: "53660876800"
+                        used: "9738022912"
+                email: rokasbertasius33@gmail.com
+                executable: /home/bertasiu/resaction-nav/.venv/bin/python3
+                git:
+                    commit: 4c9f621ab099b21f7f5db111b0b2ecc111e06033
+                    remote: https://github.com/R0kasB/resaction-nav.git
+                gpu: Tesla V100-PCIE-32GB
+                gpu_count: 1
+                gpu_nvidia:
+                    - architecture: Volta
+                      cudaCores: 5120
+                      memoryTotal: "34359738368"
+                      name: Tesla V100-PCIE-32GB
+                      uuid: GPU-d882916c-6bc8-0375-caac-fca1a78161fc
+                host: i49
+                memory:
+                    total: "404847284224"
+                os: Linux-5.14.0-70.30.1.el9_0.x86_64-x86_64-with-glibc2.34
+                program: /home/bertasiu/resaction-nav/scripts/run_pipeline.py
+                python: CPython 3.12.13
+                root: /home/bertasiu/resaction-nav
+                slurm:
+                    array_job_id: "2894806"
+                    array_task_count: "1"
+                    array_task_id: "0"
+                    array_task_max: "0"
+                    array_task_min: "0"
+                    array_task_step: "1"
+                    cluster_name: izar
+                    conf: /var/spool/slurmd/conf-cache/slurm.conf
+                    cpus_on_node: "4"
+                    cpus_per_task: "4"
+                    gpus_on_node: "1"
+                    gtids: "0"
+                    job_account: cs-503
+                    job_cpus_per_node: "4"
+                    job_end_time: "1778739544"
+                    job_gid: "30395"
+                    job_gpus: "0"
+                    job_id: "2894806"
+                    job_name: resnav-rokas
+                    job_nodelist: i49
+                    job_num_nodes: "1"
+                    job_partition: gpu
+                    job_qos: normal
+                    job_start_time: "1778696344"
+                    job_uid: "308884"
+                    job_user: bertasiu
+                    jobid: "2894806"
+                    localid: "0"
+                    mem_per_node: "32768"
+                    nnodes: "1"
+                    nodeid: "0"
+                    nodelist: i49
+                    nprocs: "1"
+                    ntasks: "1"
+                    procid: "0"
+                    script_context: prolog_task
+                    submit_dir: /home/bertasiu/resaction-nav
+                    submit_host: izar1
+                    task_pid: "2737789"
+                    tasks_per_node: "1"
+                    topology_addr: t1.ibsw1.i49
+                    topology_addr_pattern: switch.switch.node
+                    tres_per_task: cpu:4
+                startedAt: "2026-05-13T18:19:55.426368Z"
+                writerId: l4yt4lk8lmbzfwlsevv88ta2vkp17h83
+        m: []
+        python_version: 3.12.13
+        t:
+            "1":
+                - 1
+                - 49
+            "2":
+                - 1
+                - 49
+            "3":
+                - 13
+                - 16
+            "4": 3.12.13
+            "5": 0.26.1
+            "12": 0.26.1
+            "13": linux-x86_64
+agent:
+    value:
+        clip_eps: 0.2
+        entropy_coef: 0.01
+        epochs: 4
+        gamma: 0.99
+        lr: 0.0003
+        value_coef: 0.5
+agent_type:
+    value: adaptive
+env:
+    value:
+        base_resolution:
+            - 224
+            - 224
+        controller_kwargs:
+            platform: CloudRendering
+            port: 8200
+        look_degrees: 15
+        max_sensing_budget: 5
+        max_steps: 200
+        move_magnitude: 0.25
+        reward_cfg:
+            bump_penalty: 0.03
+            distance_scale: 0.01
+            fail_penalty: 1
+            oversensing_penalty: 0.05
+            sense_penalty: 0.02
+            step_penalty: 0.002
+            success_reward: 5
+        rotate_degrees: 45
+        seed: 42
+        success_distance: 0.5
+        target_object_embed_dim: 8
+        visibility_distance: 1.5
+huggingface:
+    value:
+        push: false
+        push_every: 100
+        repo_id: R0kasB/resaction-nav
+model:
+    value:
+        hidden_dim: 512
+        lstm_layers: 1
+training:
+    value:
+        auto_cluster_run_id: true
+        checkpoint_dir: checkpoints/job-2894806-rank-0/adaptive
+        checkpoint_every: 50
+        num_episodes: 500
+        num_parallel_envs: 1
+        output_dir: output/job-2894806-rank-0/adaptive
+        print_every: 10
+        resume_from: null
+        run_id: null
+        scenes:
+            - FloorPlan1
+            - FloorPlan2
+            - FloorPlan3
+            - FloorPlan4
+            - FloorPlan5
+        target:
+            candidates: null
+            cycle: null
+            mode: random
+            object_type: null
+visual_encoder:
+    value:
+        model_name: dinov2_vitb14
+wandb:
+    value:
+        enabled: true
+        entity: r0kasb-epfl
+        project: ai2thor-rl
+        run_name: exp1
