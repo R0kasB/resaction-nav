@@ -26,10 +26,14 @@ export PYTHONUNBUFFERED=1
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
 export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
 
-# Stub vulkaninfo: ai2thor parses deviceUUID lines to match CUDA<->Vulkan devices.
-# Real vulkaninfo isn't installed, so we emit the UUIDs from nvidia-smi directly.
-mkdir -p "$HOME/bin"
-cat > "$HOME/bin/vulkaninfo" << 'STUB'
+# Stub vulkaninfo: ai2thor calls subprocess.run(["vulkaninfo"]) and fails if it
+# returns non-zero or is missing. Real vulkaninfo isn't installed, so we emit
+# the UUIDs from nvidia-smi in the exact format ai2thor expects.
+# Write into .venv/bin so uv run always finds it (uv puts .venv/bin first in PATH).
+# Also write to $HOME/bin for train_all.sh which already has $HOME/bin in PATH.
+mkdir -p "$HOME/bin" .venv/bin
+for _stub_dest in "$HOME/bin/vulkaninfo" ".venv/bin/vulkaninfo"; do
+cat > "$_stub_dest" << 'STUB'
 #!/bin/bash
 nvidia-smi -L 2>/dev/null | while IFS= read -r line; do
     if [[ "$line" =~ GPU\ ([0-9]+):.+UUID:\ GPU-([^)]+) ]]; then
@@ -38,9 +42,13 @@ nvidia-smi -L 2>/dev/null | while IFS= read -r line; do
     fi
 done
 STUB
-chmod +x "$HOME/bin/vulkaninfo"
+chmod +x "$_stub_dest"
+done
+unset _stub_dest
 export PATH="$HOME/bin:$PATH"
 export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.x86_64.json
+echo "vulkaninfo stub: $(which vulkaninfo 2>&1)"
+echo "stub output: $($HOME/bin/vulkaninfo | head -2 || echo '(empty)')"
 
 # Each array task gets a unique port block to avoid collisions between agents.
 BASE_PORT=$((8200 + 20 * SLURM_ARRAY_TASK_ID))
