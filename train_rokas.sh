@@ -22,10 +22,21 @@ echo "Node: $(hostname)"
 cd "${SLURM_SUBMIT_DIR:-$(pwd)}"
 mkdir -p logs
 
+# Initialize conda so its binaries (including uv if installed there) are on PATH.
+CONDA_BASE=$(conda info --base 2>/dev/null || true)
+if [ -n "$CONDA_BASE" ]; then
+  eval "$("$CONDA_BASE/bin/conda" shell.bash hook 2>/dev/null)"
+fi
+
+# uv is typically installed in ~/.local/bin on this cluster.
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+
 if ! command -v uv >/dev/null 2>&1; then
-  echo "uv not found in PATH. Load the module or install uv first."
+  echo "uv not found. Tried PATH: $PATH"
   exit 1
 fi
+
+echo "uv: $(which uv)"
 
 export PYTHONUNBUFFERED=1
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
