@@ -436,6 +436,7 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
             project=wandb_cfg["project"],
             entity=wandb_cfg.get("entity"),
             name=f"{wandb_cfg['run_name']}-{agent_type}" if wandb_cfg.get("run_name") else agent_type,
+            group=wandb_cfg.get("group"),
             config={**cfg, "agent_type": agent_type},
         )
 

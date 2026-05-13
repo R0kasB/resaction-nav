@@ -77,6 +77,7 @@ def make_configs(base_cfg_path: str, out_dir: str) -> int:
             f"_lr{params['lr']:.0e}"
         )
         cfg["wandb"]["run_name"] = f"sweep-{task_id:03d}-{tag}"
+        cfg["wandb"]["group"]    = "sweep"
 
         path = out / f"run_{task_id:03d}.yaml"
         path.write_text(yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
