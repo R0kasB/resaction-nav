@@ -22,21 +22,9 @@ echo "Node: $(hostname)"
 cd "${SLURM_SUBMIT_DIR:-$(pwd)}"
 mkdir -p logs
 
-# Initialize conda so its binaries (including uv if installed there) are on PATH.
-CONDA_BASE=$(conda info --base 2>/dev/null || true)
-if [ -n "$CONDA_BASE" ]; then
-  eval "$("$CONDA_BASE/bin/conda" shell.bash hook 2>/dev/null)"
-fi
-
-# uv is typically installed in ~/.local/bin on this cluster.
-export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
-
-if ! command -v uv >/dev/null 2>&1; then
-  echo "uv not found. Tried PATH: $PATH"
-  exit 1
-fi
-
-echo "uv: $(which uv)"
+eval "$(conda shell.bash hook)"
+conda activate resaction-nav
+echo "Python: $(which python)"
 
 export PYTHONUNBUFFERED=1
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
@@ -48,7 +36,7 @@ unset DISPLAY
 BASE_PORT=$((8200 + 20 * SLURM_ARRAY_TASK_ID))
 GENERATED_CFG="cfgs/train_rl.rokas_task${SLURM_ARRAY_TASK_ID}.generated.yaml"
 
-python3 - <<PY
+python - <<PY
 from pathlib import Path
 import yaml
 
@@ -65,7 +53,7 @@ PY
 
 echo "Config: ${GENERATED_CFG}  base_port: ${BASE_PORT}"
 
-uv run python scripts/run_pipeline.py \
+python scripts/run_pipeline.py \
     --cfg "${GENERATED_CFG}" \
     --agent "$AGENT"
 
