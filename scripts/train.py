@@ -36,23 +36,21 @@ try:
 except Exception:  # pragma: no cover - optional dependency in test/runtime environments
     wandb = None
 
-#before ryan train
-# AGENT_REGISTRY = {
-#     "adaptive":       PPOAgent,               # default: full adaptive PPO
-#     "low_res":        LowResBaseline,
-#     "high_res":       HighResBaseline,
-#     "random_sensing": RandomSensingBaseline,
-#     "fixed_schedule": FixedScheduleBaseline,
-# }
+AGENT_REGISTRY = {
+    "adaptive":       PPOAgent,
+    "low_res":        LowResBaseline,
+    "high_res":       HighResBaseline,
+    "random_sensing": RandomSensingBaseline,
+    "fixed_schedule": FixedScheduleBaseline,
+}
 
-# def build_agent(agent_type: str, **kwargs):
-#     """Instantiate the right agent from a string key."""
-#     if agent_type not in AGENT_REGISTRY:
-#         raise ValueError(
-#             f"Unknown agent_type '{agent_type}'. "
-#             f"Choose from: {list(AGENT_REGISTRY.keys())}"
-#         )
-#     return AGENT_REGISTRY[agent_type](**kwargs)
+def build_agent(agent_type: str, **kwargs):
+    if agent_type not in AGENT_REGISTRY:
+        raise ValueError(
+            f"Unknown agent_type '{agent_type}'. "
+            f"Choose from: {list(AGENT_REGISTRY.keys())}"
+        )
+    return AGENT_REGISTRY[agent_type](**kwargs)
  
 
 
