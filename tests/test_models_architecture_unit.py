@@ -17,7 +17,7 @@ class _DummyDino(nn.Module):
 
 def test_policy_lstm_emits_logits_and_value_shapes():
     model = PolicyLSTM(vis_dim=768, n_actions=10, hidden_dim=64, lstm_layers=1)
-    obs = torch.randn(4, 768 + 3 + 2 + 10 + 1 + 1)
+    obs = torch.randn(4, 768 + 3 + 2 + 10 + 1 + 1 + 8)
     logits, value, hidden = model(obs)
     assert tuple(logits.shape) == (4, 10)
     assert tuple(value.shape) == (4, 1)
@@ -44,7 +44,7 @@ def test_agent_policy_stacks_encoder_and_lstm(monkeypatch):
     )
 
     image = torch.rand(2, 3, 64, 64)
-    aux = torch.randn(2, 3 + 2 + 10 + 1 + 1)
+    aux = torch.randn(2, 3 + 2 + 10 + 1 + 1 + 8)
     logits, value, hidden = policy(image, aux, hidden=None)
 
     assert tuple(logits.shape) == (2, 10)

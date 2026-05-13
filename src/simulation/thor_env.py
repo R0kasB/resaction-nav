@@ -1,5 +1,7 @@
+import os
 import math
 import random
+from hashlib import sha256
 from dataclasses import dataclass
 
 import numpy as np
@@ -77,6 +79,8 @@ class ThorEnv:
         rotate_degrees=45.0,
         look_degrees=15.0,
         visibility_distance=1.5,
+        target_object_embed_dim=8,
+        controller_kwargs=None,
         device=None,
         seed=0,
         reward_cfg: RewardConfig = None,
@@ -92,6 +96,7 @@ class ThorEnv:
         self.rotate_degrees = rotate_degrees
         self.look_degrees = look_degrees
         self.visibility_distance = visibility_distance
+        self.target_object_embed_dim = target_object_embed_dim
         self.seed = seed
         self.cfg = reward_cfg or RewardConfig()
 
@@ -117,15 +122,31 @@ class ThorEnv:
             "LookDown":    {"degrees": look_degrees},
         }
 
-        self.controller = Controller(
-            width=base_resolution[0],
-            height=base_resolution[1],
-            visibilityDistance=visibility_distance,
-            renderDepthImage=False,
-            renderInstanceSegmentation=False,
-            platform=CloudRendering,
-            gpu_device=0,
-        )
+        #ryan
+        controller_options = {
+            "width": base_resolution[0],
+            "height": base_resolution[1],
+            "visibilityDistance": visibility_distance,
+            "renderDepthImage": False,
+            "renderInstanceSegmentation": False,
+            "platform": CloudRendering,  #line from old
+            "gpu_device": int(os.environ.get("CUDA_VISIBLE_DEVICES", 0)), #line from old as we will train on cluster
+        }
+        if controller_kwargs:
+            controller_options.update(controller_kwargs)
+
+        self.controller = Controller(**controller_options)
+        
+        #older
+        # self.controller = Controller(
+        #     width=base_resolution[0],
+        #     height=base_resolution[1],
+        #     visibilityDistance=visibility_distance,
+        #     renderDepthImage=False,
+        #     renderInstanceSegmentation=False,
+        #     platform=CloudRendering,
+        #     gpu_device=0,
+        # )
 
         # episode state — populated by reset()
         self._step_count = 0
@@ -188,25 +209,22 @@ class ThorEnv:
                 action=action, **self.action_params[action]
             )
 
-        # Set validity flag before reward (reward checks it), but apply the
-        # downgrade change after obs so the improvement is visible next step.
+        # Set validity flag before reward (reward checks it).
         if action == "SENSE":
             self._last_sense_was_valid = (
                 self._current_downgrade > 0 and self._remaining_sensing_budget > 0
             )
+            if self._last_sense_was_valid:
+                self._current_downgrade -= 1
+                self._remaining_sensing_budget -= 1
 
         # Moving immediately resets resolution — new position = new view at worst res.
         if action in MOVE_ACTIONS:
             self._current_downgrade = self.base_downgrade
 
         truncated = self._fail_checker()
-        obs = self._compute_obs()  # still at old downgrade; SENSE takes effect next step
+        obs = self._compute_obs()
         reward = self._compute_reward(truncated)
-
-        # SENSE improvement deferred: agent pays penalty this step, sees better image next step
-        if action == "SENSE" and self._last_sense_was_valid:
-            self._current_downgrade -= 1
-            self._remaining_sensing_budget -= 1
         terminated = action == "DONE"
         info = {
             "step": self._step_count,
@@ -282,6 +300,19 @@ class ThorEnv:
         obj_vec = np.array([obj_pos["x"], obj_pos["y"], obj_pos["z"]], dtype=np.float32)
         return float(np.linalg.norm(agent_vec - obj_vec))
 
+    def _get_target_object_embedding(self) -> torch.Tensor:
+        embed_dim = int(getattr(self, "target_object_embed_dim", 0))
+        if embed_dim <= 0:
+            return torch.empty(0, dtype=torch.float32, device=self.device)
+
+        target_obj_type = self.target_obj_type or ""
+        digest = sha256(target_obj_type.encode("utf-8")).digest()
+        values = [
+            ((digest[i % len(digest)] / 255.0) * 2.0) - 1.0
+            for i in range(embed_dim)
+        ]
+        return torch.tensor(values, dtype=torch.float32, device=self.device)
+
     # ------------------------------------------------------------------
     # Reward / termination
     # ------------------------------------------------------------------
@@ -325,18 +356,19 @@ class ThorEnv:
             o["visible"] and self._get_distance_to_position(o["position"]) <= self.success_distance
             for o in targets
         )
-    
+
     def get_aux_features(self, prev_action_idx: int | None = None) -> torch.Tensor:
         """
         Build non-visual features for the policy.
 
         Returns:
-            Tensor with shape (17,):
+            Tensor with shape (17 + target_object_embed_dim,):
             - GPS position: 3
             - compass: 2
             - previous action one-hot: n_actions
             - resolution level: 1
             - remaining sensing budget: 1
+            - target object embedding: target_object_embed_dim
         """
         if self.current_event is None:
             raise RuntimeError("Environment has not been reset yet.")
@@ -390,6 +422,7 @@ class ThorEnv:
             dtype=torch.float32,
             device=self.device,
         )
+        target_object_embedding = self._get_target_object_embedding()
 
         return torch.cat(
             [
@@ -398,6 +431,7 @@ class ThorEnv:
                 prev_action,
                 resolution_level,
                 sensing_budget,
+                target_object_embedding,
             ],
             dim=0,
         )

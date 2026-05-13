@@ -20,6 +20,7 @@ class AgentPolicy(nn.Module):
         encoder_name: str = "dinov2_vitb14",
         hidden_dim: int = 512,
         lstm_layers: int = 1,
+        target_object_embed_dim: int = 8,
         device: str | torch.device | None = None,
     ):
         super().__init__()
@@ -34,6 +35,7 @@ class AgentPolicy(nn.Module):
             n_actions=n_actions,
             hidden_dim=hidden_dim,
             lstm_layers=lstm_layers,
+            target_object_embed_dim=target_object_embed_dim,
         )
 
     def forward(

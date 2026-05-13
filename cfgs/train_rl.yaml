@@ -6,13 +6,22 @@ training:
     - FloorPlan4
     - FloorPlan5
   num_episodes: 500
+  num_parallel_envs: 1  # number of concurrent environment rollouts per PPO update
+  auto_cluster_run_id: true  # append cluster job id/rank to output/checkpoint dirs when detected
+  run_id: null  # optional explicit run suffix; overrides auto_cluster_run_id
   print_every: 10
   checkpoint_every: 50
   output_dir: output
   checkpoint_dir: checkpoints
   resume_from: null  # path to a .pt checkpoint to resume from, or null
+  target:
+    mode: random  # random | fixed | cycle
+    object_type: null  # used when mode=fixed
+    cycle: null  # used when mode=cycle, e.g. ["Mug", "Apple"]
+    candidates: null  # optional whitelist used by env, e.g. ["Mug", "Apple", "Bowl"]
 
 env:
+  target_object_embed_dim: 8
   base_resolution: [224, 224]
   success_distance: 0.5
   max_steps: 200
@@ -22,6 +31,9 @@ env:
   look_degrees: 15.0
   visibility_distance: 1.5
   seed: 42
+  # controller_kwargs:
+  #   platform: CloudRendering  # useful on headless cluster nodes
+  #   port: 8200  # base port; parallel envs auto-offset (+env_idx)
   reward_cfg:
     step_penalty: 0.002
     sense_penalty: 0.02

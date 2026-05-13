@@ -13,6 +13,7 @@ class PolicyLSTM(nn.Module):
       - previous action : n_actions (one-hot)
       - resolution level: 1         (current_downgrade / base_downgrade, normalised)
       - sensing budget  : 1         (remaining_budget / max_budget, normalised)
+      - target object embedding: target_object_embed_dim
 
     Outputs:
       - action_logits : (batch, n_actions)
@@ -29,9 +30,10 @@ class PolicyLSTM(nn.Module):
         n_actions: int = 10,
         hidden_dim: int = 512,
         lstm_layers: int = 1,
+        target_object_embed_dim: int = 8,
     ):
         super().__init__()
-        input_dim = vis_dim + 3 + 2 + n_actions + 1 + 1  # see docstring breakdown
+        input_dim = vis_dim + 3 + 2 + n_actions + 1 + 1 + target_object_embed_dim
 
         self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers=lstm_layers, batch_first=True)
         self.policy_head = nn.Linear(hidden_dim, n_actions)

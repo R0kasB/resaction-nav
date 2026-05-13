@@ -10,11 +10,12 @@ Usage:
 """
 
 import argparse
+import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
 import torch
-import wandb
 import yaml
 from huggingface_hub import HfApi
 from tqdm import tqdm
@@ -30,23 +31,28 @@ from src.agents.ppo_agent import PPOAgent
 from src.models.agent_policy import AgentPolicy
 from src.simulation.thor_env import RewardConfig, ThorEnv
 
+try:
+    import wandb
+except Exception:  # pragma: no cover - optional dependency in test/runtime environments
+    wandb = None
 
-AGENT_REGISTRY = {
-    "adaptive":       PPOAgent,               # default: full adaptive PPO
-    "low_res":        LowResBaseline,
-    "high_res":       HighResBaseline,
-    "random_sensing": RandomSensingBaseline,
-    "fixed_schedule": FixedScheduleBaseline,
-}
+#before ryan train
+# AGENT_REGISTRY = {
+#     "adaptive":       PPOAgent,               # default: full adaptive PPO
+#     "low_res":        LowResBaseline,
+#     "high_res":       HighResBaseline,
+#     "random_sensing": RandomSensingBaseline,
+#     "fixed_schedule": FixedScheduleBaseline,
+# }
 
-def build_agent(agent_type: str, **kwargs):
-    """Instantiate the right agent from a string key."""
-    if agent_type not in AGENT_REGISTRY:
-        raise ValueError(
-            f"Unknown agent_type '{agent_type}'. "
-            f"Choose from: {list(AGENT_REGISTRY.keys())}"
-        )
-    return AGENT_REGISTRY[agent_type](**kwargs)
+# def build_agent(agent_type: str, **kwargs):
+#     """Instantiate the right agent from a string key."""
+#     if agent_type not in AGENT_REGISTRY:
+#         raise ValueError(
+#             f"Unknown agent_type '{agent_type}'. "
+#             f"Choose from: {list(AGENT_REGISTRY.keys())}"
+#         )
+#     return AGENT_REGISTRY[agent_type](**kwargs)
  
 
 
@@ -74,10 +80,123 @@ def push_to_hub(api: HfApi, repo_id: str, local_path: str, episode: int):
     )
 
 
-def run_agent(env: ThorEnv, agent: PPOAgent, cfg: dict, device: torch.device, start_episode: int = 0):
+def _build_cluster_run_id(training_cfg: dict) -> str | None:
+    explicit_run_id = training_cfg.get("run_id")
+    if explicit_run_id:
+        return str(explicit_run_id)
+
+    auto_cluster_id = training_cfg.get("auto_cluster_run_id", True)
+    if not auto_cluster_id:
+        return None
+
+    job_id = (
+        os.getenv("SLURM_JOB_ID")
+        or os.getenv("PBS_JOBID")
+        or os.getenv("LSB_JOBID")
+        or os.getenv("JOB_ID")
+    )
+    if not job_id:
+        return None
+
+    rank = (
+        os.getenv("SLURM_PROCID")
+        or os.getenv("SLURM_ARRAY_TASK_ID")
+        or os.getenv("OMPI_COMM_WORLD_RANK")
+    )
+    suffix = f"job-{job_id}"
+    if rank is not None:
+        suffix += f"-rank-{rank}"
+    return suffix
+
+
+def _apply_run_id_to_training_dirs(training_cfg: dict) -> str | None:
+    run_id = _build_cluster_run_id(training_cfg)
+    if not run_id:
+        return None
+
+    output_dir = Path(training_cfg["output_dir"]) / run_id
+    checkpoint_dir = Path(training_cfg["checkpoint_dir"]) / run_id
+    training_cfg["output_dir"] = str(output_dir)
+    training_cfg["checkpoint_dir"] = str(checkpoint_dir)
+    return run_id
+
+
+def _resolve_target_setup(training_cfg: dict, env_cfg: dict) -> tuple[str | None, list[str] | None]:
+    target_cfg = training_cfg.get("target")
+    fixed_target_object = None
+    target_object_cycle = None
+
+    # Backward compatibility with older flat config keys.
+    if target_cfg is None:
+        fixed_target_object = training_cfg.get("target_object_type")
+        target_object_cycle = training_cfg.get("target_object_cycle")
+        if fixed_target_object and target_object_cycle:
+            raise ValueError("Use either training.target_object_type or training.target_object_cycle, not both.")
+        if target_object_cycle is not None and len(target_object_cycle) == 0:
+            raise ValueError("training.target_object_cycle cannot be empty.")
+        return fixed_target_object, target_object_cycle
+
+    mode = target_cfg.get("mode", "random")
+    candidates = target_cfg.get("candidates")
+    object_type = target_cfg.get("object_type")
+    cycle = target_cfg.get("cycle")
+
+    if mode == "fixed":
+        if not object_type:
+            raise ValueError("training.target.object_type is required when mode='fixed'.")
+        fixed_target_object = object_type
+    elif mode == "cycle":
+        if not cycle:
+            raise ValueError("training.target.cycle must be a non-empty list when mode='cycle'.")
+        target_object_cycle = list(cycle)
+    elif mode == "random":
+        pass
+    else:
+        raise ValueError(f"Unsupported training.target.mode: {mode!r}")
+
+    if candidates is not None and len(candidates) == 0:
+        raise ValueError("training.target.candidates cannot be empty when provided.")
+
+    derived_candidates = None
+    if mode == "fixed":
+        derived_candidates = [fixed_target_object]
+    elif mode == "cycle":
+        derived_candidates = list(dict.fromkeys(target_object_cycle))
+
+    if candidates is None:
+        candidates = derived_candidates
+    elif mode == "fixed" and fixed_target_object not in candidates:
+        raise ValueError("training.target.object_type must be included in training.target.candidates.")
+    elif mode == "cycle":
+        missing = [obj for obj in target_object_cycle if obj not in candidates]
+        if missing:
+            raise ValueError("All training.target.cycle objects must be included in training.target.candidates.")
+
+    env_candidates = env_cfg.get("target_object_types")
+    if candidates is not None:
+        if env_candidates is not None and list(env_candidates) != list(candidates):
+            raise ValueError(
+                "Conflicting target candidates: use training.target.candidates as the single source of truth "
+                "or make env.target_object_types match exactly."
+            )
+        env_cfg["target_object_types"] = list(candidates)
+
+    return fixed_target_object, target_object_cycle
+
+
+def run_agent(
+    envs: ThorEnv | list[ThorEnv],
+    agent: PPOAgent,
+    cfg: dict,
+    device: torch.device,
+    start_episode: int = 0,
+    fixed_target_object: str | None = None,
+    target_object_cycle: list[str] | None = None,
+):
     tcfg = cfg["training"]
     scenes = tcfg["scenes"]
     num_episodes = tcfg["num_episodes"]
+    num_parallel_envs = int(tcfg.get("num_parallel_envs", 1))
     print_every = tcfg["print_every"]
     checkpoint_every = tcfg["checkpoint_every"]
     checkpoint_dir = tcfg["checkpoint_dir"]
@@ -89,91 +208,183 @@ def run_agent(env: ThorEnv, agent: PPOAgent, cfg: dict, device: torch.device, st
     hf_api = HfApi() if hf_push else None
 
     use_wandb = cfg.get("wandb", {}).get("enabled", False)
+    if use_wandb and wandb is None:
+        raise RuntimeError("wandb logging is enabled, but wandb could not be imported.")
 
     rewards = []
     episode_lengths = []
     successes = []
 
-    for episode in tqdm(range(start_episode, num_episodes)):
-        scene = scenes[episode % len(scenes)]
+    if isinstance(envs, ThorEnv):
+        env_list = [envs]
+    else:
+        env_list = list(envs)
 
-        image = env.reset(scene).to(device)
-        prev_action_idx = None
-        aux_features = env.get_aux_features(prev_action_idx=prev_action_idx).to(device)
+    if not env_list:
+        raise ValueError("At least one environment instance is required.")
+    if num_parallel_envs < 1:
+        raise ValueError("training.num_parallel_envs must be >= 1.")
+    if num_parallel_envs > len(env_list):
+        raise ValueError(
+            f"training.num_parallel_envs={num_parallel_envs} exceeds available environments ({len(env_list)})."
+        )
 
-        done = False
-        episode_reward = 0.0
-        episode_success = False
-        episode_num_sense_actions = 0
+    episode = start_episode
+    progress = tqdm(total=max(num_episodes - start_episode, 0))
+    while episode < num_episodes:
+        remaining = num_episodes - episode
+        batch_size = min(num_parallel_envs, remaining)
+        slots = []
 
-        hidden = None
-        agent.store_initial_hidden(hidden)
+        for slot_idx in range(batch_size):
+            current_episode = episode + slot_idx
+            env = env_list[slot_idx]
+            scene = scenes[current_episode % len(scenes)]
 
-        while not done:
-            action_idx, log_prob, value, hidden = agent.act(image=image, aux_features=aux_features, hidden=hidden)
+            target_obj_type = fixed_target_object
+            if target_object_cycle:
+                target_obj_type = target_object_cycle[current_episode % len(target_object_cycle)]
 
-            next_image, reward, terminated, truncated, info = env.step(action_idx)
-            next_image = next_image.to(device)
-
-            next_aux_features = env.get_aux_features(prev_action_idx=action_idx).to(device)
-
-            agent.store(
-                image=image,
-                aux_features=aux_features,
-                action=action_idx,
-                log_prob=log_prob,
-                reward=reward,
-                value=value,
-                done=terminated or truncated,
+            image = env.reset(scene, target_obj_type=target_obj_type).to(device)
+            aux_features = env.get_aux_features(prev_action_idx=None).to(device)
+            slots.append(
+                {
+                    "env": env,
+                    "episode": current_episode,
+                    "image": image,
+                    "aux_features": aux_features,
+                    "hidden": None,
+                    "transitions": [],
+                    "episode_reward": 0.0,
+                    "episode_success": False,
+                    "episode_num_sense_actions": 0,
+                    "done": False,
+                    "info": None,
+                    "final_image": image,
+                    "final_aux_features": aux_features,
+                    "final_hidden": None,
+                }
             )
 
-            if env.action_list[action_idx] == "SENSE":
-                episode_num_sense_actions += 1
+        while any(not slot["done"] for slot in slots):
+            active_slots = [slot for slot in slots if not slot["done"]]
 
-            image = next_image
-            aux_features = next_aux_features
-            prev_action_idx = action_idx
+            for slot in active_slots:
+                action_idx, log_prob, value, hidden = agent.act(
+                    image=slot["image"],
+                    aux_features=slot["aux_features"],
+                    hidden=slot["hidden"],
+                )
+                slot["pending_action_idx"] = action_idx
+                slot["pending_log_prob"] = log_prob
+                slot["pending_value"] = value
+                slot["pending_hidden"] = hidden
 
-            episode_reward += reward
-            done = terminated or truncated
+            with ThreadPoolExecutor(max_workers=len(active_slots)) as executor:
+                step_results = list(
+                    executor.map(
+                        lambda s: s["env"].step(s["pending_action_idx"]),
+                        active_slots,
+                    )
+                )
 
-            if terminated and info["success"]:
-                episode_success = True
+            for slot, result in zip(active_slots, step_results):
+                next_image, reward, terminated, truncated, info = result
+                next_image = next_image.to(device)
+                next_aux_features = slot["env"].get_aux_features(
+                    prev_action_idx=slot["pending_action_idx"]
+                ).to(device)
 
-        loss_dict = agent.update(next_image=image, next_aux_features=aux_features, final_hidden=hidden)
+                done = terminated or truncated
+                slot["transitions"].append(
+                    {
+                        "image": slot["image"],
+                        "aux_features": slot["aux_features"],
+                        "action": slot["pending_action_idx"],
+                        "log_prob": slot["pending_log_prob"],
+                        "reward": reward,
+                        "value": slot["pending_value"],
+                        "done": done,
+                    }
+                )
 
-        rewards.append(episode_reward)
-        episode_lengths.append(info["step"])
-        successes.append(episode_success)
+                if slot["env"].action_list[slot["pending_action_idx"]] == "SENSE":
+                    slot["episode_num_sense_actions"] += 1
 
-        if use_wandb:
-            wandb.log({
-                "episode": episode,
-                "reward": episode_reward,
-                "episode_length": info["step"],
-                "success": float(episode_success),
-                "success_rate_10": float(np.mean(successes[-10:])),
-                "num_sense_actions": episode_num_sense_actions,
-                "final_downgrade": info["downgrade"],
-                "final_sensing_budget": info["sensing_budget"],
-                **loss_dict,
-            })
+                slot["image"] = next_image
+                slot["aux_features"] = next_aux_features
+                slot["hidden"] = slot["pending_hidden"]
+                slot["episode_reward"] += reward
+                slot["info"] = info
 
-        if episode % print_every == 0:
-            print(
-                f"[ep {episode:4d}] "
-                f"reward (last 10): {np.mean(rewards[-10:]):.3f} | "
-                f"steps: {np.mean(episode_lengths[-10:]):.1f} | "
-                f"success: {np.mean(successes[-10:]):.0%} | "
-                f"sense actions: {episode_num_sense_actions}"
-            )
+                if terminated and info["success"]:
+                    slot["episode_success"] = True
 
-        if (episode + 1) % checkpoint_every == 0:
-            ckpt_path = f"{checkpoint_dir}/ep{episode + 1}.pt"
-            save_checkpoint(agent.policy, agent.optimizer, episode + 1, ckpt_path)
+                if done:
+                    slot["done"] = True
+                    slot["final_image"] = next_image
+                    slot["final_aux_features"] = next_aux_features
+                    slot["final_hidden"] = slot["pending_hidden"]
 
-            if hf_push and hf_api and (episode + 1) % hf_push_every == 0:
-                push_to_hub(hf_api, hf_repo_id, ckpt_path, episode + 1)
+        agent.store_initial_hidden(None)
+        for slot in slots:
+            for transition in slot["transitions"]:
+                agent.store(
+                    image=transition["image"],
+                    aux_features=transition["aux_features"],
+                    action=transition["action"],
+                    log_prob=transition["log_prob"],
+                    reward=transition["reward"],
+                    value=transition["value"],
+                    done=transition["done"],
+                )
+
+        final_slot = slots[-1]
+        loss_dict = agent.update(
+            next_image=final_slot["final_image"],
+            next_aux_features=final_slot["final_aux_features"],
+            final_hidden=final_slot["final_hidden"],
+        )
+
+        for slot in slots:
+            current_episode = slot["episode"]
+            info = slot["info"]
+            rewards.append(slot["episode_reward"])
+            episode_lengths.append(info["step"])
+            successes.append(slot["episode_success"])
+
+            if use_wandb and wandb is not None:
+                wandb.log({
+                    "episode": current_episode,
+                    "reward": slot["episode_reward"],
+                    "episode_length": info["step"],
+                    "success": float(slot["episode_success"]),
+                    "success_rate_10": float(np.mean(successes[-10:])),
+                    "num_sense_actions": slot["episode_num_sense_actions"],
+                    "final_downgrade": info["downgrade"],
+                    "final_sensing_budget": info["sensing_budget"],
+                    **loss_dict,
+                })
+
+            if current_episode % print_every == 0:
+                print(
+                    f"[ep {current_episode:4d}] "
+                    f"reward (last 10): {np.mean(rewards[-10:]):.3f} | "
+                    f"steps: {np.mean(episode_lengths[-10:]):.1f} | "
+                    f"success: {np.mean(successes[-10:]):.0%} | "
+                    f"sense actions: {slot['episode_num_sense_actions']}"
+                )
+
+            if (current_episode + 1) % checkpoint_every == 0:
+                ckpt_path = f"{checkpoint_dir}/ep{current_episode + 1}.pt"
+                save_checkpoint(agent.policy, agent.optimizer, current_episode + 1, ckpt_path)
+
+                if hf_push and hf_api and (current_episode + 1) % hf_push_every == 0:
+                    push_to_hub(hf_api, hf_repo_id, ckpt_path, current_episode + 1)
+
+        episode += batch_size
+        progress.update(batch_size)
+    progress.close()
 
     return rewards, episode_lengths, successes
 
@@ -210,6 +421,8 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
     model_cfg = cfg.get("model", {})
     wandb_cfg = cfg.get("wandb", {})
 
+    run_id = _apply_run_id_to_training_dirs(tcfg)
+
     if agent_type is None:
         agent_type = cfg.get("agent_type", "adaptive")
 
@@ -219,6 +432,8 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
     Path(tcfg["output_dir"]).mkdir(parents=True, exist_ok=True)
 
     if wandb_cfg.get("enabled", False):
+        if wandb is None:
+            raise RuntimeError("wandb is enabled in config, but wandb could not be imported.")
         wandb.init(
             project=wandb_cfg["project"],
             entity=wandb_cfg.get("entity"),
@@ -229,11 +444,42 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    fixed_target_object, target_object_cycle = _resolve_target_setup(
+        training_cfg=tcfg,
+        env_cfg=env_cfg,
+    )
+
     reward_cfg = RewardConfig(**env_cfg.pop("reward_cfg", {}))
-    env = ThorEnv(**env_cfg, reward_cfg=reward_cfg)
+    num_parallel_envs = int(tcfg.get("num_parallel_envs", 1))
+    if num_parallel_envs < 1:
+        raise ValueError("training.num_parallel_envs must be >= 1.")
+
+    base_seed = env_cfg.get("seed")
+    envs: list[ThorEnv] = []
+    for env_idx in range(num_parallel_envs):
+        env_instance_cfg = dict(env_cfg)
+        if base_seed is not None:
+            env_instance_cfg["seed"] = int(base_seed) + env_idx
+        controller_kwargs = env_instance_cfg.get("controller_kwargs")
+        if isinstance(controller_kwargs, dict):
+            controller_kwargs = dict(controller_kwargs)
+            if controller_kwargs.get("port") is not None:
+                controller_kwargs["port"] = int(controller_kwargs["port"]) + env_idx
+            env_instance_cfg["controller_kwargs"] = controller_kwargs
+        envs.append(ThorEnv(**env_instance_cfg, reward_cfg=reward_cfg))
+
+    env_target_embed_dim = int(getattr(envs[0], "target_object_embed_dim", 0))
+
+    model_target_embed_dim = model_cfg.get("target_object_embed_dim")
+    if model_target_embed_dim is not None and int(model_target_embed_dim) != env_target_embed_dim:
+        raise ValueError(
+            "model.target_object_embed_dim must match env.target_object_embed_dim. "
+            f"Got model={model_target_embed_dim}, env={env_target_embed_dim}."
+        )
+    model_cfg["target_object_embed_dim"] = env_target_embed_dim
 
     policy = AgentPolicy(
-        n_actions=len(env.action_list),
+        n_actions=len(envs[0].action_list),
         encoder_name=cfg.get("visual_encoder", {}).get("model_name", "dinov2_vitb14"),
         **model_cfg,
         device=device,
@@ -253,11 +499,13 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
 
     try:
         rewards, episode_lengths, successes = run_agent(
-            env=env,
+            envs=envs,
             agent=agent,
             cfg=cfg,
             device=device,
             start_episode=start_episode,
+            fixed_target_object=fixed_target_object,
+            target_object_cycle=target_object_cycle,
         )
 
         output_data(
@@ -269,10 +517,14 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
             filename=f"{tcfg['output_dir']}/training_log.txt",
         )
     finally:
-        env.close()
+        for env in envs:
+            env.close()
 
-        if wandb_cfg.get("enabled", False):
+        if wandb_cfg.get("enabled", False) and wandb is not None:
             wandb.finish()
+
+    if run_id:
+        print(f"Cluster run id: {run_id}")
 
     return {
         "episodes": len(rewards),

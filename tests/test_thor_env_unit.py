@@ -84,12 +84,38 @@ def test_get_aux_features_shape_and_action_encoding():
     env._current_downgrade = 3
     env.max_sensing_budget = 5
     env._remaining_sensing_budget = 2
+    env.target_obj_type = "Apple"
+    env.target_object_embed_dim = 8
     env.current_event = _fake_event(np.zeros((8, 8, 3), dtype=np.uint8))
 
     feat = env.get_aux_features(prev_action_idx=2)
-    assert tuple(feat.shape) == (3 + 2 + len(env.action_list) + 1 + 1,)
+    assert tuple(feat.shape) == (3 + 2 + len(env.action_list) + 1 + 1 + env.target_object_embed_dim,)
     # previous action one-hot starts at index 5 (gps + compass)
     assert feat[5 + 2].item() == pytest.approx(1.0)
+
+
+def test_get_aux_features_changes_with_target_object():
+    ThorEnv = _import_thor_env()
+    env = ThorEnv.__new__(ThorEnv)
+    env.device = torch.device("cpu")
+    env.action_list = ["MoveAhead", "RotateRight", "SENSE", "DONE"]
+    env.base_downgrade = 7
+    env._current_downgrade = 3
+    env.max_sensing_budget = 5
+    env._remaining_sensing_budget = 2
+    env.target_object_embed_dim = 8
+    env.current_event = _fake_event(np.zeros((8, 8, 3), dtype=np.uint8))
+
+    env.target_obj_type = "Apple"
+    apple_feat = env.get_aux_features(prev_action_idx=2)
+    env.target_obj_type = "Mug"
+    mug_feat = env.get_aux_features(prev_action_idx=2)
+
+    embedding_start = 3 + 2 + len(env.action_list) + 1 + 1
+    assert not torch.allclose(
+        apple_feat[embedding_start:],
+        mug_feat[embedding_start:],
+    )
 
 
 def test_step_applies_sense_budget_after_reward():
@@ -119,3 +145,34 @@ def test_step_applies_sense_budget_after_reward():
     assert truncated is False
     assert info["downgrade"] == 1
     assert info["sensing_budget"] == 0
+
+
+def test_step_applies_sense_before_observation():
+    ThorEnv = _import_thor_env()
+    env = ThorEnv.__new__(ThorEnv)
+    env.action_list = ["MoveAhead", "SENSE", "DONE"]
+    env.action2id = {a: i for i, a in enumerate(env.action_list)}
+    env.action_params = {"MoveAhead": {"moveMagnitude": 0.25}}
+    env._step_count = 0
+    env._current_action = "MoveAhead"
+    env.base_downgrade = 7
+    env._current_downgrade = 2
+    env.max_sensing_budget = 2
+    env._remaining_sensing_budget = 1
+    env._last_sense_was_valid = False
+    env._done = False
+    env.controller = types.SimpleNamespace(step=lambda **kwargs: env.current_event)
+    env.current_event = _fake_event(np.zeros((8, 8, 3), dtype=np.uint8))
+    env._fail_checker = lambda: False
+    seen_downgrades = []
+
+    def _recording_obs():
+        seen_downgrades.append(env._current_downgrade)
+        return torch.zeros(3, 8, 8)
+
+    env._compute_obs = _recording_obs
+    env._compute_reward = lambda truncated: 0.123
+    env._check_success = lambda: False
+
+    env.step(env.action2id["SENSE"])
+    assert seen_downgrades == [1]
