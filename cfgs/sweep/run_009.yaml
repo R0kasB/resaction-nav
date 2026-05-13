@@ -1,0 +1,66 @@
+training:
+  scenes:
+  - FloorPlan1
+  - FloorPlan2
+  - FloorPlan3
+  - FloorPlan4
+  - FloorPlan5
+  num_episodes: 1500
+  num_parallel_envs: 4
+  auto_cluster_run_id: true
+  run_id: null
+  print_every: 10
+  checkpoint_every: 1500
+  output_dir: output
+  checkpoint_dir: checkpoints
+  resume_from: null
+  target:
+    mode: random
+    object_type: null
+    cycle: null
+    candidates: null
+env:
+  target_object_embed_dim: 8
+  base_resolution:
+  - 224
+  - 224
+  success_distance: 0.5
+  max_steps: 200
+  max_sensing_budget: 5
+  move_magnitude: 0.25
+  rotate_degrees: 45.0
+  look_degrees: 15.0
+  visibility_distance: 1.5
+  seed: 42
+  reward_cfg:
+    step_penalty: 0.002
+    sense_penalty: 0.02
+    oversensing_penalty: 0.05
+    bump_penalty: 0.03
+    fail_penalty: 1.0
+    success_reward: 10.0
+    distance_scale: 0.1
+  controller_kwargs:
+    platform: CloudRendering
+    port: 9380
+agent:
+  lr: 0.0003
+  gamma: 0.99
+  clip_eps: 0.2
+  value_coef: 0.5
+  entropy_coef: 0.05
+  epochs: 4
+model:
+  hidden_dim: 512
+  lstm_layers: 1
+visual_encoder:
+  model_name: dinov2_vitb14
+wandb:
+  enabled: true
+  project: ai2thor-rl
+  entity: r0kasb-epfl
+  run_name: sweep-009-ec0.05_ds0.1_lr3e-04
+huggingface:
+  repo_id: R0kasB/resaction-nav
+  push: false
+  push_every: 100

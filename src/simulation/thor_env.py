@@ -130,7 +130,7 @@ class ThorEnv:
             "renderDepthImage": False,
             "renderInstanceSegmentation": False,
             "platform": CloudRendering,  #line from old
-            "gpu_device": int(os.environ.get("CUDA_VISIBLE_DEVICES", 0)), #line from old as we will train on cluster
+            "gpu_device": 0,  # CUDA_VISIBLE_DEVICES already remaps physical GPU to index 0
         }
         if controller_kwargs:
             controller_options.update(controller_kwargs)

@@ -1,0 +1,128 @@
+[
+  {
+    "task_id": 0,
+    "yaml": "cfgs/sweep/run_000.yaml",
+    "entropy_coef": 0.01,
+    "distance_scale": 0.01,
+    "lr": 0.0001
+  },
+  {
+    "task_id": 1,
+    "yaml": "cfgs/sweep/run_001.yaml",
+    "entropy_coef": 0.01,
+    "distance_scale": 0.01,
+    "lr": 0.0003
+  },
+  {
+    "task_id": 2,
+    "yaml": "cfgs/sweep/run_002.yaml",
+    "entropy_coef": 0.01,
+    "distance_scale": 0.1,
+    "lr": 0.0001
+  },
+  {
+    "task_id": 3,
+    "yaml": "cfgs/sweep/run_003.yaml",
+    "entropy_coef": 0.01,
+    "distance_scale": 0.1,
+    "lr": 0.0003
+  },
+  {
+    "task_id": 4,
+    "yaml": "cfgs/sweep/run_004.yaml",
+    "entropy_coef": 0.01,
+    "distance_scale": 0.5,
+    "lr": 0.0001
+  },
+  {
+    "task_id": 5,
+    "yaml": "cfgs/sweep/run_005.yaml",
+    "entropy_coef": 0.01,
+    "distance_scale": 0.5,
+    "lr": 0.0003
+  },
+  {
+    "task_id": 6,
+    "yaml": "cfgs/sweep/run_006.yaml",
+    "entropy_coef": 0.05,
+    "distance_scale": 0.01,
+    "lr": 0.0001
+  },
+  {
+    "task_id": 7,
+    "yaml": "cfgs/sweep/run_007.yaml",
+    "entropy_coef": 0.05,
+    "distance_scale": 0.01,
+    "lr": 0.0003
+  },
+  {
+    "task_id": 8,
+    "yaml": "cfgs/sweep/run_008.yaml",
+    "entropy_coef": 0.05,
+    "distance_scale": 0.1,
+    "lr": 0.0001
+  },
+  {
+    "task_id": 9,
+    "yaml": "cfgs/sweep/run_009.yaml",
+    "entropy_coef": 0.05,
+    "distance_scale": 0.1,
+    "lr": 0.0003
+  },
+  {
+    "task_id": 10,
+    "yaml": "cfgs/sweep/run_010.yaml",
+    "entropy_coef": 0.05,
+    "distance_scale": 0.5,
+    "lr": 0.0001
+  },
+  {
+    "task_id": 11,
+    "yaml": "cfgs/sweep/run_011.yaml",
+    "entropy_coef": 0.05,
+    "distance_scale": 0.5,
+    "lr": 0.0003
+  },
+  {
+    "task_id": 12,
+    "yaml": "cfgs/sweep/run_012.yaml",
+    "entropy_coef": 0.1,
+    "distance_scale": 0.01,
+    "lr": 0.0001
+  },
+  {
+    "task_id": 13,
+    "yaml": "cfgs/sweep/run_013.yaml",
+    "entropy_coef": 0.1,
+    "distance_scale": 0.01,
+    "lr": 0.0003
+  },
+  {
+    "task_id": 14,
+    "yaml": "cfgs/sweep/run_014.yaml",
+    "entropy_coef": 0.1,
+    "distance_scale": 0.1,
+    "lr": 0.0001
+  },
+  {
+    "task_id": 15,
+    "yaml": "cfgs/sweep/run_015.yaml",
+    "entropy_coef": 0.1,
+    "distance_scale": 0.1,
+    "lr": 0.0003
+  },
+  {
+    "task_id": 16,
+    "yaml": "cfgs/sweep/run_016.yaml",
+    "entropy_coef": 0.1,
+    "distance_scale": 0.5,
+    "lr": 0.0001
+  },
+  {
+    "task_id": 17,
+    "yaml": "cfgs/sweep/run_017.yaml",
+    "entropy_coef": 0.1,
+    "distance_scale": 0.5,
+    "lr": 0.0003
+  }
+]

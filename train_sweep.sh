@@ -1,30 +1,24 @@
 #!/bin/bash
 #SBATCH --job-name=resnav-sweep
-#SBATCH --output=logs/sweep_%A_%a.out
-#SBATCH --error=logs/sweep_%A_%a.err
-#SBATCH --array=0-17        # update this after running make_sweep.py
+#SBATCH --output=logs/sweep_%j.out
+#SBATCH --error=logs/sweep_%j.err
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:1
-#SBATCH --mem=32G
-#SBATCH --time=6:00:00
+#SBATCH --cpus-per-task=40
+#SBATCH --gres=gpu:2
+#SBATCH --mem=375G
+#SBATCH --time=12:00:00
 
 # Run make_sweep.py first to generate cfgs/sweep/run_*.yaml, then:
 #   sbatch train_sweep.sh
 
 set -euo pipefail
 
-CFG="cfgs/sweep/run_$(printf '%03d' "$SLURM_ARRAY_TASK_ID").yaml"
-
-echo "Task: $SLURM_ARRAY_TASK_ID  Config: $CFG"
-echo "Job ID: $SLURM_JOB_ID  Node: $(hostname)"
-
 cd "${SLURM_SUBMIT_DIR:-$(pwd)}"
 mkdir -p logs
 
 export PYTHONUNBUFFERED=1
-export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
-export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
+export OMP_NUM_THREADS=4
+export MKL_NUM_THREADS=4
 
 # vulkaninfo stub (same logic as train_rokas.sh)
 mkdir -p "$HOME/bin" .venv/bin
@@ -45,8 +39,25 @@ unset _stub_dest
 export PATH="$HOME/bin:$PATH"
 export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.x86_64.json
 
-uv run python scripts/run_pipeline.py \
-    --cfg "$CFG" \
-    --agent adaptive
+run_config() {
+    local i=$1
+    local gpu=$2
+    local cfg="cfgs/sweep/run_$(printf '%03d' "$i").yaml"
+    echo "=== Task $i  GPU $gpu  Config: $cfg ==="
+    CUDA_VISIBLE_DEVICES=$gpu uv run python scripts/run_pipeline.py \
+        --cfg "$cfg" \
+        --agent adaptive \
+        > "logs/sweep_${SLURM_JOB_ID}_task${i}.out" 2>&1
+    echo "=== Done: task $i ==="
+}
 
-echo "Done: task $SLURM_ARRAY_TASK_ID"
+# Run all 18 configs at once: even → GPU 0, odd → GPU 1
+pids=()
+for i in $(seq 0 17); do
+    gpu=$((i % 2))
+    run_config "$i" "$gpu" &
+    pids+=($!)
+done
+wait "${pids[@]}"
+
+echo "All sweep configs complete."
