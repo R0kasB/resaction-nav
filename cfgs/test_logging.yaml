@@ -1,0 +1,68 @@
+training:
+  scenes:
+    - FloorPlan1
+    - FloorPlan2
+  num_episodes: 8          # 4 batches of 2 — enough to see multi-episode CSV rows
+  num_parallel_envs: 2     # keep parallel to exercise parallel-safe logging
+  auto_cluster_run_id: false
+  run_id: test_logging
+  print_every: 1
+  checkpoint_every: 999    # no checkpoints during test
+  output_dir: output
+  checkpoint_dir: checkpoints
+  resume_from: null
+  target:
+    mode: random
+
+env:
+  target_object_embed_dim: 8
+  base_resolution: [64, 64]  # fast render
+  success_distance: 0.5
+  max_steps: 30              # short episodes
+  max_sensing_budget: 5
+  move_magnitude: 0.25
+  rotate_degrees: 45.0
+  look_degrees: 15.0
+  visibility_distance: 1.5
+  seed: 42
+  reward_cfg:
+    step_penalty: 0.002
+    sense_penalty: 0.02
+    oversensing_penalty: 0.05
+    bump_penalty: 0.03
+    fail_penalty: 1.0
+    success_reward: 5.0
+    distance_scale: 0.1
+
+agent:
+  lr: 3.0e-4
+  gamma: 0.99
+  clip_eps: 0.2
+  value_coef: 0.5
+  entropy_coef: 0.05
+  epochs: 4
+
+model:
+  hidden_dim: 512
+  lstm_layers: 1
+
+visual_encoder:
+  model_name: dinov2_vitb14
+
+wandb:
+  enabled: false
+
+huggingface:
+  repo_id: R0kasB/resaction-nav
+  push: false
+  push_every: 999
+
+trajectory_logging:
+  enabled: true
+  fields:
+    position: true
+    rotation: true
+    action: true
+    downgrade: true
+    sensing_budget: true
+    reward: true
