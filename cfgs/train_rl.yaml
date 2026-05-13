@@ -5,12 +5,12 @@ training:
     - FloorPlan3
     - FloorPlan4
     - FloorPlan5
-  num_episodes: 500
-  num_parallel_envs: 1  # number of concurrent environment rollouts per PPO update
+  num_episodes: 1500
+  num_parallel_envs: 4  # number of concurrent environment rollouts per PPO update
   auto_cluster_run_id: true  # append cluster job id/rank to output/checkpoint dirs when detected
   run_id: null  # optional explicit run suffix; overrides auto_cluster_run_id
   print_every: 10
-  checkpoint_every: 50
+  checkpoint_every: 250
   output_dir: output
   checkpoint_dir: checkpoints
   resume_from: null  # path to a .pt checkpoint to resume from, or null
@@ -41,14 +41,14 @@ env:
     bump_penalty: 0.03
     fail_penalty: 1.0
     success_reward: 5.0
-    distance_scale: 0.01
+    distance_scale: 0.1
 
 agent:
   lr: 3.0e-4
   gamma: 0.99
   clip_eps: 0.2
   value_coef: 0.5
-  entropy_coef: 0.01
+  entropy_coef: 0.05
   epochs: 4
 
 model:
@@ -62,7 +62,7 @@ wandb:
   enabled: true
   project: ai2thor-rl
   entity: r0kasb-epfl
-  run_name: exp1
+  run_name: exp2
 
 huggingface:
   repo_id: R0kasB/resaction-nav
