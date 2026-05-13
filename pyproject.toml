@@ -3,18 +3,31 @@ name = "resaction-nav"
 version = "0.1.0"
 description = "Dynamic-resolution object-navigation agent trained with PPO in AI2-THOR"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "ai2thor>=5.0.0",
     "huggingface-hub>=1.12.2",
     "ipykernel>=7.2.0",
     "numpy>=2.4.4",
     "pyyaml>=6.0.3",
-    "torch>=2.11.0",
-    "torchvision>=0.26.0",
+    "torch>=2.4.0",
+    "torchvision>=0.19.0",
     "transformers>=5.7.0",
     "wandb>=0.26.1",
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu121" }
+torchvision = { index = "pytorch-cu121" }
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]

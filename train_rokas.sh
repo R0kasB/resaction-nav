@@ -22,21 +22,31 @@ echo "Node: $(hostname)"
 cd "${SLURM_SUBMIT_DIR:-$(pwd)}"
 mkdir -p logs
 
-eval "$(conda shell.bash hook)"
-conda activate resaction-nav
-echo "Python: $(which python)"
-
 export PYTHONUNBUFFERED=1
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
 export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
+
+# Stub vulkaninfo: ai2thor parses deviceUUID lines to match CUDA<->Vulkan devices.
+# Real vulkaninfo isn't installed, so we emit the UUIDs from nvidia-smi directly.
+mkdir -p "$HOME/bin"
+cat > "$HOME/bin/vulkaninfo" << 'STUB'
+#!/bin/bash
+nvidia-smi -L 2>/dev/null | while IFS= read -r line; do
+    if [[ "$line" =~ GPU\ ([0-9]+):.+UUID:\ GPU-([^)]+) ]]; then
+        echo "GPU${BASH_REMATCH[1]}:"
+        echo "        deviceUUID = ${BASH_REMATCH[2]}"
+    fi
+done
+STUB
+chmod +x "$HOME/bin/vulkaninfo"
+export PATH="$HOME/bin:$PATH"
 export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.x86_64.json
-unset DISPLAY
 
 # Each array task gets a unique port block to avoid collisions between agents.
 BASE_PORT=$((8200 + 20 * SLURM_ARRAY_TASK_ID))
 GENERATED_CFG="cfgs/train_rl.rokas_task${SLURM_ARRAY_TASK_ID}.generated.yaml"
 
-python - <<PY
+uv run python - <<PY
 from pathlib import Path
 import yaml
 
@@ -53,7 +63,7 @@ PY
 
 echo "Config: ${GENERATED_CFG}  base_port: ${BASE_PORT}"
 
-python scripts/run_pipeline.py \
+uv run python scripts/run_pipeline.py \
     --cfg "${GENERATED_CFG}" \
     --agent "$AGENT"
 
