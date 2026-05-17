@@ -1,0 +1,92 @@
+{
+  "os":  "Linux-5.14.0-70.30.1.el9_0.x86_64-x86_64-with-glibc2.34",
+  "python":  "CPython 3.12.13",
+  "startedAt":  "2026-05-13T23:10:55.361706Z",
+  "args":  [
+    "--cfg",
+    "cfgs/sweep/run_008.yaml",
+    "--agent",
+    "adaptive"
+  ],
+  "program":  "/home/bertasiu/resaction-nav/scripts/run_pipeline.py",
+  "codePath":  "scripts/run_pipeline.py",
+  "codePathLocal":  "scripts/run_pipeline.py",
+  "git":  {
+    "remote":  "https://github.com/R0kasB/resaction-nav.git",
+    "commit":  "b8c0632fc40cb383b86141019817d48bb62306a2"
+  },
+  "email":  "rokasbertasius33@gmail.com",
+  "root":  "/home/bertasiu/resaction-nav",
+  "host":  "i44",
+  "executable":  "/home/bertasiu/resaction-nav/.venv/bin/python3",
+  "cpu_count":  40,
+  "cpu_count_logical":  40,
+  "gpu":  "Tesla V100-PCIE-32GB",
+  "gpu_count":  2,
+  "disk":  {
+    "/":  {
+      "total":  "53660876800",
+      "used":  "8789618688"
+    }
+  },
+  "memory":  {
+    "total":  "404847284224"
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "Tesla V100-PCIE-32GB",
+      "memoryTotal":  "34359738368",
+      "cudaCores":  5120,
+      "architecture":  "Volta",
+      "uuid":  "GPU-0f630612-2134-7519-9f2e-f494611ac5e4"
+    },
+    {
+      "name":  "Tesla V100-PCIE-32GB",
+      "memoryTotal":  "34359738368",
+      "cudaCores":  5120,
+      "architecture":  "Volta",
+      "uuid":  "GPU-0a55d8ae-0e0e-ab35-9d8e-4ba1c8fab46a"
+    }
+  ],
+  "cudaVersion":  "12.2",
+  "slurm":  {
+    "cluster_name":  "izar",
+    "conf":  "/var/spool/slurmd/conf-cache/slurm.conf",
+    "cpus_on_node":  "40",
+    "cpus_per_task":  "40",
+    "gpus_on_node":  "2",
+    "gtids":  "0",
+    "job_account":  "cs-503",
+    "job_cpus_per_node":  "40",
+    "job_end_time":  "1778756998",
+    "job_gid":  "30395",
+    "job_gpus":  "0,1",
+    "job_id":  "2894852",
+    "job_name":  "resnav-sweep",
+    "job_nodelist":  "i44",
+    "job_num_nodes":  "1",
+    "job_partition":  "gpu",
+    "job_qos":  "normal",
+    "job_start_time":  "1778713798",
+    "job_uid":  "308884",
+    "job_user":  "bertasiu",
+    "jobid":  "2894852",
+    "localid":  "0",
+    "mem_per_node":  "384000",
+    "nnodes":  "1",
+    "nodeid":  "0",
+    "nodelist":  "i44",
+    "nprocs":  "1",
+    "ntasks":  "1",
+    "procid":  "0",
+    "script_context":  "prolog_task",
+    "submit_dir":  "/home/bertasiu/resaction-nav",
+    "submit_host":  "izar1",
+    "task_pid":  "2505788",
+    "tasks_per_node":  "1",
+    "topology_addr":  "t1.ibsw1.i44",
+    "topology_addr_pattern":  "switch.switch.node",
+    "tres_per_task":  "cpu:40"
+  },
+  "writerId":  "y1nj1gtn3o91uqivlu13a6sc1ouenh6u"
+}

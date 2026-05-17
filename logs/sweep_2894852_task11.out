@@ -1,0 +1,36 @@
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/bertasiu/.netrc.
+wandb: Currently logged in as: r0kasb (r0kasb-epfl) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run xjxr33tw
+wandb: Tracking run with wandb version 0.26.1
+wandb: Run data is saved locally in /home/bertasiu/resaction-nav/wandb/run-20260514_011055-xjxr33tw
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run sweep-011-ec0.05_ds0.5_lr3e-04-adaptive
+wandb: ⭐️ View project at https://wandb.ai/r0kasb-epfl/ai2thor-rl
+wandb: 🚀 View run at https://wandb.ai/r0kasb-epfl/ai2thor-rl/runs/xjxr33tw
+Traceback (most recent call last):
+  File "/home/bertasiu/resaction-nav/scripts/run_pipeline.py", line 80, in <module>
+    summary = run_pipeline(cfg_path=args.cfg, resume=args.resume, smoke=args.smoke, agent_type=args.agent)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/bertasiu/resaction-nav/scripts/run_pipeline.py", line 57, in run_pipeline
+    return train_module.run_training_pipeline(cfg=cfg, resume_path=resume, agent_type=agent_type)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/bertasiu/resaction-nav/scripts/train.py", line 482, in run_training_pipeline
+    envs.append(ThorEnv(**env_instance_cfg, reward_cfg=reward_cfg))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/bertasiu/resaction-nav/src/simulation/thor_env.py", line 138, in __init__
+    self.controller = Controller(**controller_options)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/bertasiu/resaction-nav/.venv/lib/python3.12/site-packages/ai2thor/controller.py", line 518, in __init__
+    self.start(
+  File "/home/bertasiu/resaction-nav/.venv/lib/python3.12/site-packages/ai2thor/controller.py", line 1436, in start
+    self._start_unity_thread(env, width, height, unity_params, image_name)
+  File "/home/bertasiu/resaction-nav/.venv/lib/python3.12/site-packages/ai2thor/controller.py", line 1126, in _start_unity_thread
+    command = self.unity_command(width, height, self.headless)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/bertasiu/resaction-nav/.venv/lib/python3.12/site-packages/ai2thor/controller.py", line 1111, in unity_command
+    command += f" -force-device-index {cuda_vulkan_mapping[self.gpu_device]}"
+                                       ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+KeyError: 1
+[1;34mwandb[0m: 
+[1;34mwandb[0m: 🚀 View run [33msweep-011-ec0.05_ds0.5_lr3e-04-adaptive[0m at: [34mhttps://wandb.ai/r0kasb-epfl/ai2thor-rl/runs/xjxr33tw[0m
+[1;34mwandb[0m: Find logs at: [1;35mwandb/run-20260514_011055-xjxr33tw/logs[0m
