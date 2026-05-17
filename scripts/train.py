@@ -375,6 +375,9 @@ def run_agent(
                     "num_sense_actions": slot["episode_num_sense_actions"],
                     "final_downgrade": info["downgrade"],
                     "final_sensing_budget": info["sensing_budget"],
+                    "initial_distance": info["initial_distance"],
+                    "final_distance": info["current_distance"],
+                    "min_distance_seen": info["min_distance_seen"],
                     **loss_dict,
                 })
 
@@ -425,6 +428,39 @@ def output_data(rewards, successes, episode_lengths, run_type, params, filename)
         f.write(f"Mean Episode Length: {mean_ep_len:.4f}\n")
         f.write("-" * 40 + "\n")
 
+def _apply_agent_mode_defaults(agent_type: str, agent_cfg: dict, env_cfg: dict) -> str:
+    agent_label = agent_type
+
+    if agent_type != "high_res":
+        return agent_label
+
+    mode = agent_cfg.get("mode", "baseline")
+
+    if mode not in {"poc", "baseline"}:
+        raise ValueError(
+            f"Invalid high_res mode={mode!r}. Use 'poc' or 'baseline'."
+        )
+
+    agent_label = f"high_res_{mode}"
+
+    # HighResBaseline is always directly high-res.
+    env_cfg["fixed_high_res"] = True
+    env_cfg["max_sensing_budget"] = 0
+
+    # No sensing cost for high-res baseline.
+    reward_cfg = dict(env_cfg.get("reward_cfg", {}))
+    reward_cfg["sense_penalty"] = 0.0
+    reward_cfg["oversensing_penalty"] = 0.0
+    env_cfg["reward_cfg"] = reward_cfg
+
+    if mode == "poc":
+        env_cfg["action_set"] = "minimal"
+        env_cfg["auto_success_on_goal"] = True
+    else:
+        env_cfg["action_set"] = "navigation"
+        env_cfg["auto_success_on_goal"] = False
+
+    return agent_label
 
 def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type: str | None = None) -> dict:
     tcfg = cfg["training"]
@@ -437,9 +473,15 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
 
     if agent_type is None:
         agent_type = cfg.get("agent_type", "adaptive")
+    
+    agent_label = _apply_agent_mode_defaults(
+        agent_type=agent_type,
+        agent_cfg=agent_cfg,
+        env_cfg=env_cfg,
+    )
 
-    tcfg["checkpoint_dir"] = str(Path(tcfg["checkpoint_dir"]) / agent_type)
-    tcfg["output_dir"]     = str(Path(tcfg["output_dir"])     / agent_type)
+    tcfg["checkpoint_dir"] = str(Path(tcfg["checkpoint_dir"]) / agent_label)
+    tcfg["output_dir"]     = str(Path(tcfg["output_dir"])     / agent_label)
     Path(tcfg["checkpoint_dir"]).mkdir(parents=True, exist_ok=True)
     Path(tcfg["output_dir"]).mkdir(parents=True, exist_ok=True)
 
@@ -449,9 +491,9 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
         wandb.init(
             project=wandb_cfg["project"],
             entity=wandb_cfg.get("entity"),
-            name=f"{wandb_cfg['run_name']}-{agent_type}" if wandb_cfg.get("run_name") else agent_type,
+            name=f"{wandb_cfg['run_name']}-{agent_label}" if wandb_cfg.get("run_name") else agent_label,
             group=wandb_cfg.get("group"),
-            config={**cfg, "agent_type": agent_type},
+            config={**cfg, "agent_type": agent_type, "agent_label": agent_label},
         )
 
 
@@ -479,7 +521,18 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
             if controller_kwargs.get("port") is not None:
                 controller_kwargs["port"] = int(controller_kwargs["port"]) + env_idx
             env_instance_cfg["controller_kwargs"] = controller_kwargs
-        envs.append(ThorEnv(**env_instance_cfg, reward_cfg=reward_cfg))
+        env = ThorEnv(**env_instance_cfg, reward_cfg=reward_cfg)
+        """print(f"\n[DEBUG ENV {env_idx}]")
+        print("fixed_high_res:", getattr(env, "fixed_high_res", None))
+        print("action_set:", getattr(env, "action_set", None))
+        print("action_list:", getattr(env, "action_list", None))
+        print("max_sensing_budget:", getattr(env, "max_sensing_budget", None))
+        print("base_downgrade:", getattr(env, "base_downgrade", None))
+        print("current_downgrade before reset:", getattr(env, "_current_downgrade", None))
+        print("remaining_sensing_budget before reset:", getattr(env, "_remaining_sensing_budget", None))
+        print()"""
+
+        envs.append(env)
 
     env_target_embed_dim = int(getattr(envs[0], "target_object_embed_dim", 0))
 
@@ -531,7 +584,7 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
             rewards=rewards,
             successes=successes,
             episode_lengths=episode_lengths,
-            run_type=agent_type,
+            run_type=agent_label,
             params=agent_cfg,
             filename=f"{tcfg['output_dir']}/training_log.txt",
         )

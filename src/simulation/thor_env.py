@@ -42,6 +42,24 @@ ACTION_LIST = [
 ]
 
 
+MINIMAL_ACTION_LIST = [
+    "MoveAhead",
+    "RotateLeft",
+    "RotateRight",
+    #"DONE",
+]
+
+NAVIGATION_ACTION_LIST = [
+    action for action in ACTION_LIST if action != "SENSE"
+]
+
+ACTION_SETS = {
+    "full": ACTION_LIST,
+    "minimal": MINIMAL_ACTION_LIST,
+    "navigation": NAVIGATION_ACTION_LIST,
+}
+
+
 class ThorEnv:
     """
     AI2-THOR navigation environment with dynamic resolution.
@@ -84,6 +102,11 @@ class ThorEnv:
         device=None,
         seed=0,
         reward_cfg: RewardConfig = None,
+        fixed_high_res: bool = False,
+        action_set: str = "full",
+        auto_success_on_goal: bool = False,
+        env_id: int = 0,
+        randomize_object_spawn: bool = True,
     ):
         self.target_object_types = target_object_types
         self.base_resolution = base_resolution
@@ -109,7 +132,23 @@ class ThorEnv:
             np.random.seed(seed)
             torch.manual_seed(seed)
 
-        self.action_list = ACTION_LIST
+        if action_set not in ACTION_SETS:
+            raise ValueError(
+                f"Unknown action_set={action_set!r}. "
+                f"Choose from {list(ACTION_SETS.keys())}."
+            )
+
+        self.fixed_high_res = fixed_high_res
+        self.action_set = action_set
+        self.action_list = list(ACTION_SETS[action_set])
+        self.auto_success_on_goal = auto_success_on_goal
+
+        if "DONE" not in self.action_list and not self.auto_success_on_goal:
+            raise ValueError(
+                "This action_set does not contain DONE. "
+                "Set auto_success_on_goal=True or use an action_set with DONE."
+            )
+        
         self.action2id = {a: i for i, a in enumerate(self.action_list)}
         self.action_params = {
             "MoveAhead":   {"moveMagnitude": move_magnitude},
@@ -137,6 +176,10 @@ class ThorEnv:
 
         self.controller = Controller(**controller_options)
         
+        #randomize objetct spawn
+        self.env_id = env_id
+        self._reset_count = 0
+        self.randomize_object_spawn = randomize_object_spawn
         #older
         # self.controller = Controller(
         #     width=base_resolution[0],
@@ -151,8 +194,15 @@ class ThorEnv:
         # episode state — populated by reset()
         self._step_count = 0
         self._current_action = "MoveAhead"
-        self._current_downgrade = self.base_downgrade
-        self._remaining_sensing_budget = max_sensing_budget
+        self._current_downgrade = 0 if self.fixed_high_res else self.base_downgrade
+        self._remaining_sensing_budget = 0 if self.fixed_high_res else self.max_sensing_budget
+        """print("[DEBUG RESET]")
+        print("fixed_high_res:", self.fixed_high_res)
+        print("action_set:", self.action_set)
+        print("action_list:", self.action_list)
+        print("_current_downgrade:", self._current_downgrade)
+        print("_remaining_sensing_budget:", self._remaining_sensing_budget)
+        print()"""
         self._last_sense_was_valid = True
         self._closest_distance = np.inf
         self._done = False
@@ -174,16 +224,29 @@ class ThorEnv:
             gridSize=self.move_magnitude,
             renderImage=True,
         )
+        #random
+        if self.randomize_object_spawn:
+            spawn_seed = int(self.seed) + 100_000 * int(self.env_id) + int(self._reset_count)
+        else:
+            spawn_seed = int(self.seed)
+
         self.current_event = self.controller.step(
             action="InitialRandomSpawn",
-            randomSeed=self.seed,
+            randomSeed=spawn_seed,
             forceVisible=True,
         )
 
+        self._reset_count += 1
+
         self._step_count = 0
         self._current_action = "MoveAhead"
-        self._current_downgrade = self.base_downgrade
-        self._remaining_sensing_budget = self.max_sensing_budget
+        self._current_downgrade = 0 if self.fixed_high_res else self.base_downgrade
+        self._remaining_sensing_budget = 0 if self.fixed_high_res else self.max_sensing_budget
+
+        if self.fixed_high_res and self._current_downgrade != 0:
+            raise RuntimeError(
+                f"fixed_high_res=True but reset set _current_downgrade={self._current_downgrade}"
+            )
         self._last_sense_was_valid = True
         self._done = False
 
@@ -193,6 +256,18 @@ class ThorEnv:
             self._define_target()
 
         self._closest_distance = self._get_min_distance_to_object(self.target_obj_type)
+        self._initial_distance = self._closest_distance
+        self._min_distance_seen = self._closest_distance
+
+        target_objects = [
+            obj for obj in self.current_event.metadata["objects"]
+            if obj.get("objectType") == self.target_obj_type
+        ]
+
+        """print("[DEBUG TARGET]")
+        print("target:", self.target_obj_type)
+        print("num target objects:", len(target_objects))
+        print("initial distance:", self._get_min_distance_to_object(self.target_obj_type))"""
         return self._compute_obs()
 
     def step(self, action_idx: int):
@@ -219,18 +294,49 @@ class ThorEnv:
                 self._remaining_sensing_budget -= 1
 
         # Moving immediately resets resolution — new position = new view at worst res.
-        if action in MOVE_ACTIONS:
+        if action in MOVE_ACTIONS and not self.fixed_high_res:
             self._current_downgrade = self.base_downgrade
 
         truncated = self._fail_checker()
         obs = self._compute_obs()
-        reward = self._compute_reward(truncated)
-        terminated = action == "DONE"
+
+        current_distance = self._get_min_distance_to_object(self.target_obj_type)
+        self._min_distance_seen = min(self._min_distance_seen, current_distance)
+        
+        task_success = self._check_success()
+        reward = self._compute_reward(truncated=truncated, task_success=task_success)
+
+        terminated = action == "DONE" or (
+            self.auto_success_on_goal and task_success
+)
+
+        if self.fixed_high_res and self._current_downgrade != 0:
+            raise RuntimeError(
+                f"fixed_high_res=True but _current_downgrade={self._current_downgrade} "
+                f"after action={action}, step={self._step_count}"
+            )
+ 
+        agent_pos = self.current_event.metadata["agent"]["position"]
+        last_action_success = self.current_event.metadata["lastActionSuccess"]
+        """print(
+            "[DEBUG STEP]",
+            "step:", self._step_count,
+            "action:", action,
+            "success:", last_action_success,
+            "pos:", agent_pos,
+            "dist:", current_distance,
+        )"""
+
         info = {
             "step": self._step_count,
             "downgrade": self._current_downgrade,
             "sensing_budget": self._remaining_sensing_budget,
-            "success": self._check_success() if terminated else False,
+            "success": task_success,
+            "task_success": task_success,
+            "auto_success_on_goal": self.auto_success_on_goal,
+            "initial_distance": self._initial_distance,
+            "current_distance": current_distance,
+            "min_distance_seen": self._min_distance_seen,
         }
 
         self._done = terminated or truncated
@@ -317,7 +423,9 @@ class ThorEnv:
     # Reward / termination
     # ------------------------------------------------------------------
 
-    def _compute_reward(self, truncated: bool) -> float:
+    def _compute_reward(self, truncated: bool, task_success: bool | None = None) -> float:
+        if task_success is None:
+            task_success = self._check_success()
         reward = 0.0
         action = self._current_action
         cfg = self.cfg
@@ -329,17 +437,21 @@ class ThorEnv:
             self._closest_distance = current_dist
 
         if action == "SENSE":
-            reward -= cfg.sense_penalty
-            if not self._last_sense_was_valid:
-                reward -= cfg.oversensing_penalty
+            reward -= cfg.sense_penalty if self._last_sense_was_valid else cfg.oversensing_penalty
+
         elif action == "DONE":
-            reward += cfg.success_reward if self._check_success() else -cfg.fail_penalty
+            reward += cfg.success_reward if task_success else -cfg.fail_penalty
+
         elif not self.current_event.metadata["lastActionSuccess"]:
             reward -= cfg.bump_penalty
+
         else:
             reward -= cfg.step_penalty
 
-        if truncated:
+        if self.auto_success_on_goal and task_success and action != "DONE":
+            reward += cfg.success_reward
+
+        if truncated and not task_success:
             reward -= cfg.fail_penalty
 
         return reward
