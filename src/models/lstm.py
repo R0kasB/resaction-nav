@@ -33,7 +33,15 @@ class PolicyLSTM(nn.Module):
         target_object_embed_dim: int = 8,
     ):
         super().__init__()
-        input_dim = vis_dim + 3 + 2 + n_actions + 1 + 1 + target_object_embed_dim
+        input_dim = (
+            vis_dim
+            + 2                          # gps: (x, z)
+            + 4                          # compass: sin/cos of yaw and horizon
+            + n_actions                  # prev_action one-hot
+            + 1                          # resolution level
+            + 1                          # sensing budget
+            + target_object_embed_dim    # target embedding (expanded from idx in AgentPolicy)
+        )
 
         self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers=lstm_layers, batch_first=True)
         self.policy_head = nn.Linear(hidden_dim, n_actions)

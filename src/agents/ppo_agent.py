@@ -170,11 +170,27 @@ class PPOAgent:
         n_updates = 0
 
         for _ in range(self.epochs):
+            # Hidden state propagated through the full sequence within this epoch.
+            # initial_hidden was captured from the *old* policy at rollout start; we
+            # bootstrap from None (or initial_hidden) and let dones reset it.
             h = self.initial_hidden
+
+            self.optimizer.zero_grad()
+
+            epoch_policy_loss = 0.0
+            epoch_value_loss = 0.0
+            epoch_entropy = 0.0
+            epoch_chunks = 0
 
             for chunk_start in range(0, T, seg):
                 chunk_end = min(chunk_start + seg, T)
                 sl = slice(chunk_start, chunk_end)
+
+                # Detach h at chunk boundary so the graph for this chunk is bounded
+                # by `seg` steps (this is the whole point of TBPTT).
+                if h is not None:
+                    hh, cc = h
+                    h = (hh.detach(), cc.detach())
 
                 all_logits = []
                 all_values = []
@@ -188,7 +204,6 @@ class PPOAgent:
                         aux_features[i],
                         hidden=h,
                     )
-
                     all_logits.append(logit.squeeze(0))
                     all_values.append(val.squeeze())
 
@@ -200,20 +215,14 @@ class PPOAgent:
                 entropy = dist.entropy().mean()
 
                 ratio = (new_lps - old_lps[sl]).exp()
-
                 surr1 = ratio * advantages[sl]
                 surr2 = ratio.clamp(1 - self.clip_eps, 1 + self.clip_eps) * advantages[sl]
-
                 policy_loss = -torch.min(surr1, surr2).mean()
 
                 if self.use_value_clip:
-                    v_clipped = old_vals[sl] + (
-                        v_pred - old_vals[sl]
-                    ).clamp(
-                        -self.value_clip_eps,
-                        self.value_clip_eps,
+                    v_clipped = old_vals[sl] + (v_pred - old_vals[sl]).clamp(
+                        -self.value_clip_eps, self.value_clip_eps,
                     )
-
                     value_loss = 0.5 * torch.max(
                         (v_pred - returns[sl]).pow(2),
                         (v_clipped - returns[sl]).pow(2),
@@ -221,25 +230,30 @@ class PPOAgent:
                 else:
                     value_loss = 0.5 * (v_pred - returns[sl]).pow(2).mean()
 
-                loss = (
+                # Weight each chunk's contribution by its length so the total
+                # is the *mean over the whole rollout*, not the mean over chunks.
+                weight = (chunk_end - chunk_start) / T
+                chunk_loss = weight * (
                     policy_loss
                     + self.value_coef * value_loss
                     - self.entropy_coef * entropy
                 )
+                chunk_loss.backward()
 
-                self.optimizer.zero_grad()
-                loss.backward()
-                nn.utils.clip_grad_norm_(self.policy.parameters(), max_norm=0.5)
-                self.optimizer.step()
+                epoch_policy_loss += weight * policy_loss.item()
+                epoch_value_loss  += weight * value_loss.item()
+                epoch_entropy     += weight * entropy.item()
+                epoch_chunks      += 1
 
-                if h is not None:
-                    hh, cc = h
-                    h = (hh.detach(), cc.detach())
+            # One optimizer step per epoch, after gradients are accumulated
+            # across all chunks of the rollout.
+            nn.utils.clip_grad_norm_(self.policy.parameters(), max_norm=0.5)
+            self.optimizer.step()
 
-                total_policy_loss += policy_loss.item()
-                total_value_loss += value_loss.item()
-                total_entropy += entropy.item()
-                n_updates += 1
+            total_policy_loss += epoch_policy_loss
+            total_value_loss  += epoch_value_loss
+            total_entropy     += epoch_entropy
+            n_updates         += 1
 
         if self.scheduler is not None:
             self.scheduler.step()
@@ -248,9 +262,9 @@ class PPOAgent:
         self.buffer = []
 
         return {
-            "policy_loss": total_policy_loss / n_updates,
-            "value_loss": total_value_loss / n_updates,
-            "entropy": total_entropy / n_updates,
+            "policy_loss": total_policy_loss / max(n_updates, 1),
+            "value_loss":  total_value_loss  / max(n_updates, 1),
+            "entropy":     total_entropy     / max(n_updates, 1),
         }
     
     def _compute_gae(

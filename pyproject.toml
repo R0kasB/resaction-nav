@@ -15,7 +15,7 @@ dependencies = [
     "torch>=2.4.0",
     "torchvision>=0.19.0",
     "transformers>=5.7.0",
-    "wandb>=0.26.1",
+    "wandb[media]>=0.26.1",
 ]
 
 [[tool.uv.index]]
