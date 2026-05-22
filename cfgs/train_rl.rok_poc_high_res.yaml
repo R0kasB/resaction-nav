@@ -1,0 +1,72 @@
+agent_type: high_res
+
+training:
+  scenes:
+    - FloorPlan1
+  num_episodes: 2000
+  num_parallel_envs: 4
+  auto_cluster_run_id: true
+  run_id: null
+  print_every: 10
+  checkpoint_every: 100
+  output_dir: output
+  checkpoint_dir: checkpoints
+  resume_from: null
+  target:
+    mode: fixed
+    object_type: Mug
+    cycle: null
+    candidates: ["Mug"]
+
+env:
+  target_object_embed_dim: 8
+  base_resolution: [224, 224]
+  success_distance: 0.75
+  max_steps: 50
+  max_sensing_budget: 0
+  fixed_high_res: true
+  action_set: minimal
+  move_magnitude: 0.25
+  rotate_degrees: 45.0
+  look_degrees: 15.0
+  visibility_distance: 1.5
+  seed: 42
+  randomize_object_spawn: false
+  reward_cfg:
+    step_penalty: 0.01
+    sense_penalty: 0.0
+    oversensing_penalty: 0.0
+    bump_penalty: 0.05
+    fail_penalty: .1
+    success_reward: 10.0
+    distance_scale: 0.5
+
+agent:
+  mode: poc
+  lr: 1.0e-4
+  gamma: 0.99
+  clip_eps: 0.1
+  value_coef: 0.5
+  entropy_coef: 0.05
+  epochs: 8
+
+model:
+  hidden_dim: 256
+  lstm_layers: 1
+
+visual_encoder:
+  model_name: dinov2_vits14
+
+wandb:
+  enabled: true
+  project: ai2thor-rl
+  entity: r0kasb-epfl
+  run_name: poc_high_res
+
+trajectory_logging:
+  enabled: false
+
+huggingface:
+  repo_id: R0kasB/resaction-nav
+  push: false
+  push_every: 100

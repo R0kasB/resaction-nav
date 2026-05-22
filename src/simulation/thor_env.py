@@ -52,7 +52,7 @@ MINIMAL_ACTION_LIST = [
     "MoveAhead",
     "RotateLeft",
     "RotateRight",
-    # "DONE",
+    "DONE",
 ]
 
 NAVIGATION_ACTION_LIST = [
