@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from ai2thor.controller import Controller
 from ai2thor.platform import CloudRendering
+from ai2thor.util.metrics import get_shortest_path_to_object, path_distance
 
 from src.utils.image_resolution import degrade_resolution
 
@@ -17,8 +18,8 @@ class RewardConfig:
     sense_penalty: float = 0.02
     oversensing_penalty: float = 0.05
     bump_penalty: float = 0.03
-    fail_penalty: float = 1.0
-    wrong_done_penalty: float = 2.0
+    timeout_penalty: float = 0.5
+    fail_done_penalty: float = 2.0
     success_reward: float = 5.0
     distance_scale: float = 0.01
 
@@ -53,6 +54,7 @@ MINIMAL_ACTION_LIST = [
     "MoveAhead",
     "RotateLeft",
     "RotateRight",
+    "DONE",
     "DONE",
 ]
 
@@ -143,6 +145,8 @@ class ThorEnv:
 
         self.seed = seed
         self.cfg = reward_cfg or RewardConfig()
+
+        self._geo_cache: dict[tuple, float] = {}
 
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -263,6 +267,67 @@ class ThorEnv:
             + self._AUX_BUDGET_DIM
             + self._AUX_TARGET_IDX_DIM
         )
+    def _geodesic_distance_from(
+        self,
+        position: dict,
+        object_id: str,
+    ) -> float:
+        """Geodesic (shortest navigable path) distance from an arbitrary position
+        to a target object. Returns float('inf') on pathfinding failure or on
+        degenerate single-corner paths.
+
+        Cached by (grid cell, object_id). Cache is invalidated in reset().
+        """
+        grid = self.move_magnitude
+        key = (
+            round(position["x"] / grid),
+            round(position["z"] / grid),
+            object_id,
+        )
+        cached = self._geo_cache.get(key)
+        if cached is not None:
+            return cached
+
+        try:
+            path_event = self.controller.step(
+                action="GetShortestPath",
+                position=position,
+                objectId=object_id,
+            )
+            if not path_event.metadata["lastActionSuccess"]:
+                return float("inf")
+            corners = path_event.metadata["actionReturn"]["corners"]
+            if len(corners) < 2:
+                # Degenerate path: Unity considers we're already at the target.
+                # Treat as a failed pathfinding so callers can react properly.
+                pass
+                #print(
+                #    f"[WARN] degenerate path ({len(corners)} corner(s)), "
+                #    f"pos=({position['x']:.2f},{position['z']:.2f}), oid={object_id}"
+                #)
+                return float("inf")
+            dist = sum(
+                math.sqrt((a["x"] - b["x"]) ** 2 + (a["z"] - b["z"]) ** 2)
+                for a, b in zip(corners[:-1], corners[1:])
+            )
+        except Exception:
+            return float("inf")
+
+        # Only cache finite, strictly positive distances. Zero distances signal a
+        # near-degenerate planner result we don't want to memoize.
+        if math.isfinite(dist) and dist > 0.0:
+            self._geo_cache[key] = dist
+        return dist
+
+    def _get_geodesic_distance_to_target(self) -> float:
+        """Shortest navigable path length from the current agent position
+        to the target object. Returns float('inf') if pathfinding fails."""
+        objects = self.current_event.metadata["objects"]
+        matches = [o for o in objects if o["objectType"] == self.target_obj_type]
+        if not matches:
+            return float("inf")
+        agent_pos = self.current_event.metadata["agent"]["position"]
+        return self._geodesic_distance_from(agent_pos, matches[0]["objectId"])
 
     def _teleport_agent_at_distance(
         self,
@@ -291,34 +356,36 @@ class ThorEnv:
         if not reachable:
             return False
 
-        # 3) Filter by Euclidean distance first (cheap)
+        # 3) Filter by Euclidean distance first (cheap prefilter).
+        # We use a wider Euclidean band than the target geodesic band, because
+        # geodesic distance is always >= Euclidean (obstacles only make paths
+        # longer). A position with Euclidean < d_min cannot satisfy the geodesic
+        # band, so we keep the d_min lower bound.
         candidates = [
             (p, math.sqrt((p["x"] - tx) ** 2 + (p["z"] - tz) ** 2))
             for p in reachable
         ]
-        candidates = [(p, d) for p, d in candidates if d_min <= d <= d_max]
+        candidates = [(p, d) for p, d in candidates if d_min <= d]
         if not candidates:
             return False
 
-        # 4) Optionally refine with geodesic distance (true path length)
+        # 4) Refine with geodesic distance (true path length)
         if use_geodesic:
             refined = []
             for p, _ in candidates:
-                path_event = self.controller.step(
-                    action="GetShortestPath",
-                    position=p,
-                    objectId=target_object_id,
-                )
-                if path_event.metadata["lastActionSuccess"]:
-                    corners = path_event.metadata["actionReturn"]["corners"]
-                    gd = sum(
-                        math.sqrt((a["x"] - b["x"]) ** 2 + (a["z"] - b["z"]) ** 2)
-                        for a, b in zip(corners[:-1], corners[1:])
-                    )
-                    if d_min <= gd <= d_max:
-                        refined.append((p, gd))
-            if refined:
-                candidates = refined
+                gd = self._geodesic_distance_from(p, target_object_id)
+                if d_min <= gd <= d_max:
+                    refined.append((p, gd))
+            if not refined:
+                # No candidate satisfies the geodesic band — give up cleanly so
+                # the caller can widen the band or warn loudly.
+                return False
+            candidates = refined
+        else:
+            # Pure Euclidean mode: also apply the upper bound (skipped above).
+            candidates = [(p, d) for p, d in candidates if d <= d_max]
+            if not candidates:
+                return False
 
         # 5) Pick one and teleport
         chosen_pos, _ = candidates[rng.integers(len(candidates))]
@@ -338,8 +405,19 @@ class ThorEnv:
     # ------------------------------------------------------------------
 
     def reset(self, scene: str, episode: int, target_obj_type: str = None,) -> torch.Tensor:
+        if scene != getattr(self, "_cached_scene", None):
+            self._geo_cache = {}
+            self._cached_scene = scene
+        # NB: also clear cache if target object moves between episodes
+        if self.randomize_object_spawn:
+            self._geo_cache = {}
+
+        print(f"[RESET] requested={scene}, current_scene={getattr(self, 'scene', None)}")
         self.scene = scene
+        self._geo_cache = {}
         self.controller.reset(scene)
+        event_meta = self.controller.last_event.metadata.get("sceneName", "?")
+        print(f"[RESET] after controller.reset, sceneName in metadata={event_meta}")
 
         self.current_event = self.controller.step(
             action="Initialize",
@@ -360,6 +438,25 @@ class ThorEnv:
 
         event = self.controller.step("GetReachablePositions")
         positions = event.metadata["actionReturn"]
+
+        if positions is None or len(positions) == 0:
+            # GetReachablePositions occasionally returns None after a fresh reset
+            # in AI2-THOR. Retry once after re-Initialize. If still failing, raise.
+            self.current_event = self.controller.step(
+                action="Initialize",
+                gridSize=self.move_magnitude,
+                renderImage=True,
+            )
+            event = self.controller.step("GetReachablePositions")
+            positions = event.metadata["actionReturn"]
+            if positions is None or len(positions) == 0:
+                raise RuntimeError(
+                    f"GetReachablePositions returned None on scene {scene!r} "
+                    f"after retry. lastActionSuccess="
+                    f"{event.metadata.get('lastActionSuccess')}, "
+                    f"errorMessage={event.metadata.get('errorMessage')!r}"
+                )
+
         xs = [p["x"] for p in positions]
         zs = [p["z"] for p in positions]
         self._scene_bounds = {
@@ -390,22 +487,30 @@ class ThorEnv:
 
         # ---- Force a controlled initial distance to the target ----
         if self.enforce_initial_distance:
-            # curriculum learning
-            d_target = min(1.5 + 0.001 * episode, 4.0)   # 1m → 3m with 2000 ép
+            d_target = min(1.5 + 0.001 * episode, 4.0)
             d_min, d_max = d_target - 0.5, d_target + 0.5
-            self._teleport_agent_at_distance(
+            ok = self._teleport_agent_at_distance(
                 d_min=d_min,
                 d_max=d_max,
                 use_geodesic=True,
             )
-            # else: silent fallback to default AI2-THOR spawn
+            if not ok:
+                print(f"[WARN] teleport failed: d_min={d_min:.2f}, d_max={d_max:.2f}")
+        if self.enforce_initial_distance:
+            ok = self._teleport_agent_at_distance(d_min=d_min, d_max=d_max, use_geodesic=True)
+            pos = self.current_event.metadata["agent"]["position"]
+            geo = self._get_geodesic_distance_to_target()
+            euc = self._get_min_distance_to_object(self.target_obj_type)
+            print(f"[TELEPORT] ok={ok}, agent=({pos['x']:.2f},{pos['z']:.2f}), geo={geo:.2f}, euc={euc:.2f}")
 
         # Set agent start tracking AFTER any teleport so SPL/path_length are correct
         agent_position = self.current_event.metadata["agent"]["position"]
         self._agent_start = (agent_position["x"], agent_position["z"])
         self._prev_agent_xz = (agent_position["x"], agent_position["z"])
 
-        self._closest_distance = self._get_min_distance_to_object(self.target_obj_type)
+        self._closest_distance = self._get_geodesic_distance_to_target()
+        if not math.isfinite(self._closest_distance):
+            self._closest_distance = self._get_min_distance_to_object(self.target_obj_type)
         self._prev_distance = self._closest_distance
         self._initial_distance = self._closest_distance
         self._min_distance_seen = self._closest_distance
@@ -450,7 +555,10 @@ class ThorEnv:
         truncated = self._fail_checker()
         obs = self._compute_obs()
 
-        current_distance = self._get_min_distance_to_object(self.target_obj_type)
+        current_distance = self._get_geodesic_distance_to_target()
+        if not math.isfinite(current_distance):
+            # Fallback to euclidean if pathfinding failed this step
+            current_distance = self._get_min_distance_to_object(self.target_obj_type)
         self._min_distance_seen = min(self._min_distance_seen, current_distance)
 
         task_success = self._check_success()
@@ -699,7 +807,7 @@ class ThorEnv:
         if action == "SENSE":
             reward -= cfg.sense_penalty if self._last_sense_was_valid else cfg.oversensing_penalty
         elif action == "DONE":
-            reward += cfg.success_reward if task_success else -cfg.wrong_done_penalty
+            reward += cfg.success_reward if task_success else -cfg.fail_penalty
         elif not self.current_event.metadata["lastActionSuccess"]:
             reward -= cfg.bump_penalty
         else:
@@ -709,7 +817,7 @@ class ThorEnv:
             reward += cfg.success_reward
 
         if truncated and not task_success:
-            reward -= cfg.fail_penalty
+            reward -= cfg.timeout_penalty
 
         return reward
 
