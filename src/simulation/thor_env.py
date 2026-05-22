@@ -18,6 +18,7 @@ class RewardConfig:
     oversensing_penalty: float = 0.05
     bump_penalty: float = 0.03
     fail_penalty: float = 1.0
+    wrong_done_penalty: float = 2.0
     success_reward: float = 5.0
     distance_scale: float = 0.01
 
@@ -698,7 +699,7 @@ class ThorEnv:
         if action == "SENSE":
             reward -= cfg.sense_penalty if self._last_sense_was_valid else cfg.oversensing_penalty
         elif action == "DONE":
-            reward += cfg.success_reward if task_success else -cfg.fail_penalty
+            reward += cfg.success_reward if task_success else -cfg.wrong_done_penalty
         elif not self.current_event.metadata["lastActionSuccess"]:
             reward -= cfg.bump_penalty
         else:
