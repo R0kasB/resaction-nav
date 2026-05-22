@@ -5,13 +5,12 @@ Usage:
     uv run python scripts/train.py
     uv run python scripts/train.py --cfg cfgs/train_rl.yaml
     uv run python scripts/train.py --cfg cfgs/train_rl.yaml --resume checkpoints/ep100.pt
-    or 
+    or
     sbatch train_all.sh to train adaptative agent + 4 baselines
 """
 
 import argparse
 import os
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -34,10 +33,10 @@ from src.utils.trajectory_logger import TrajectoryLogger
 
 try:
     import wandb
-except Exception:  # pragma: no cover - optional dependency in test/runtime environments
+except Exception:  # pragma: no cover
     wandb = None
 
-VIDEO_EVERY = 50 
+VIDEO_EVERY = 50
 
 AGENT_REGISTRY = {
     "adaptive":       PPOAgent,
@@ -47,6 +46,7 @@ AGENT_REGISTRY = {
     "fixed_schedule": FixedScheduleBaseline,
 }
 
+
 def build_agent(agent_type: str, **kwargs):
     if agent_type not in AGENT_REGISTRY:
         raise ValueError(
@@ -54,12 +54,12 @@ def build_agent(agent_type: str, **kwargs):
             f"Choose from: {list(AGENT_REGISTRY.keys())}"
         )
     return AGENT_REGISTRY[agent_type](**kwargs)
- 
 
 
 def load_cfg(path: str) -> dict:
     with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
+
 
 def save_checkpoint(policy, optimizer, episode, path):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -68,9 +68,10 @@ def save_checkpoint(policy, optimizer, episode, path):
         "policy":              policy.state_dict(),
         "optimizer":           optimizer.state_dict(),
         "episode":             episode,
-        "target_object_vocab": policy.target_object_vocab,  # ← ajout
+        "target_object_vocab": policy.target_object_vocab,
     }, tmp_path)
     Path(tmp_path).rename(path)
+
 
 def push_to_hub(api: HfApi, repo_id: str, local_path: str, episode: int):
     api.upload_file(
@@ -114,7 +115,6 @@ def _apply_run_id_to_training_dirs(training_cfg: dict) -> str | None:
     run_id = _build_cluster_run_id(training_cfg)
     if not run_id:
         return None
-
     output_dir = Path(training_cfg["output_dir"]) / run_id
     checkpoint_dir = Path(training_cfg["checkpoint_dir"]) / run_id
     training_cfg["output_dir"] = str(output_dir)
@@ -127,7 +127,6 @@ def _resolve_target_setup(training_cfg: dict, env_cfg: dict) -> tuple[str | None
     fixed_target_object = None
     target_object_cycle = None
 
-    # Backward compatibility with older flat config keys.
     if target_cfg is None:
         fixed_target_object = training_cfg.get("target_object_type")
         target_object_cycle = training_cfg.get("target_object_cycle")
@@ -213,11 +212,12 @@ def run_agent(
     if use_wandb and wandb is None:
         raise RuntimeError("wandb logging is enabled, but wandb could not be imported.")
 
-    video_every = int(tcfg.get("video_every", 50))
+    video_every = int(tcfg.get("video_every", VIDEO_EVERY))
 
     rewards = []
     episode_lengths = []
     successes = []
+    spls = []
 
     if isinstance(envs, ThorEnv):
         env_list = [envs]
@@ -236,15 +236,8 @@ def run_agent(
     episode_table = (
         wandb.Table(
             columns=[
-                "episode",
-                "scene",
-                "target",
-                "success",
-                "reward",
-                "steps",
-                "n_sense",
-                "initial_dist",
-                "final_dist",
+                "episode", "scene", "target", "success", "spl", "reward",
+                "steps", "n_sense", "initial_dist", "final_dist",
             ]
         )
         if use_wandb and wandb is not None
@@ -259,6 +252,7 @@ def run_agent(
         batch_size = min(num_parallel_envs, remaining)
         slots = []
 
+        # ----- Reset all slots for this iteration -----
         for slot_idx in range(batch_size):
             current_episode = episode + slot_idx
             env = env_list[slot_idx]
@@ -268,31 +262,33 @@ def run_agent(
             if target_object_cycle:
                 target_obj_type = target_object_cycle[current_episode % len(target_object_cycle)]
 
-            image = env.reset(scene, target_obj_type=target_obj_type).to(device)
+            image = env.reset(scene, target_obj_type=target_obj_type, episode=current_episode).to(device)
             aux_features = env.get_aux_features(prev_action_idx=None).to(device)
             if trajectory_logger is not None:
                 trajectory_logger.save_layout_once(scene, env)
 
-            slots.append(
-                {
-                    "env": env,
-                    "episode": current_episode,
-                    "image": image,
-                    "aux_features": aux_features,
-                    "hidden": None,
-                    "transitions": [],
-                    "frames": [],
-                    "episode_reward": 0.0,
-                    "episode_success": False,
-                    "episode_num_sense_actions": 0,
-                    "done": False,
-                    "info": None,
-                    "final_image": image,
-                    "final_aux_features": aux_features,
-                    "final_hidden": None,
-                }
-            )
+            slots.append({
+                "env": env,
+                "episode": current_episode,
+                "image": image,
+                "aux_features": aux_features,
+                "hidden": None,
+                "initial_hidden": None,   # captured once, before any act()
+                "transitions": [],
+                "frames": [],
+                "episode_reward": 0.0,
+                "episode_success": False,
+                "episode_spl": 0.0,
+                "episode_num_sense_actions": 0,
+                "done": False,
+                "info": None,
+                "final_image": image,
+                "final_aux_features": aux_features,
+                "final_hidden": None,
+            })
 
+        # ----- Roll out all slots until all done. Sequential per-slot inference
+        # to keep things deterministic and avoid the non-thread-safe controller.
         while any(not slot["done"] for slot in slots):
             active_slots = [slot for slot in slots if not slot["done"]]
 
@@ -302,38 +298,23 @@ def run_agent(
                     aux_features=slot["aux_features"],
                     hidden=slot["hidden"],
                 )
-                slot["pending_action_idx"] = action_idx
-                slot["pending_log_prob"] = log_prob
-                slot["pending_value"] = value
-                slot["pending_hidden"] = hidden
 
-            with ThreadPoolExecutor(max_workers=len(active_slots)) as executor:
-                step_results = list(
-                    executor.map(
-                        lambda s: s["env"].step(s["pending_action_idx"]),
-                        active_slots,
-                    )
-                )
-
-            for slot, result in zip(active_slots, step_results):
-                next_image, reward, terminated, truncated, info = result
-                next_image = next_image.to(device)
+                next_image_raw, reward, terminated, truncated, info = slot["env"].step(action_idx)
+                next_image = next_image_raw.to(device)
                 next_aux_features = slot["env"].get_aux_features(
-                    prev_action_idx=slot["pending_action_idx"]
+                    prev_action_idx=action_idx,
                 ).to(device)
 
                 done = terminated or truncated
-                slot["transitions"].append(
-                    {
-                        "image": slot["image"],
-                        "aux_features": slot["aux_features"],
-                        "action": slot["pending_action_idx"],
-                        "log_prob": slot["pending_log_prob"],
-                        "reward": reward,
-                        "value": slot["pending_value"],
-                        "done": done,
-                    }
-                )
+                slot["transitions"].append({
+                    "image":        slot["image"],
+                    "aux_features": slot["aux_features"],
+                    "action":       action_idx,
+                    "log_prob":     log_prob,
+                    "reward":       reward,
+                    "value":        value,
+                    "done":         done,
+                })
 
                 if use_wandb and slot["episode"] % video_every == 0:
                     frame = (
@@ -341,71 +322,77 @@ def run_agent(
                     ).clip(0, 255).astype(np.uint8)
                     slot["frames"].append(frame)
 
-                action_name = slot["env"].action_list[slot["pending_action_idx"]]
+                action_name = slot["env"].action_list[action_idx]
                 if action_name == "SENSE":
                     slot["episode_num_sense_actions"] += 1
                 if trajectory_logger is not None:
                     trajectory_logger.log_step(
-                        slot["episode"],
-                        info["step"],
-                        slot["env"].scene,
-                        slot["env"].target_obj_type,
-                        slot["env"],
-                        action_name,
-                        reward,
-                        info,
+                        slot["episode"], info["step"], slot["env"].scene,
+                        slot["env"].target_obj_type, slot["env"],
+                        action_name, reward, info,
                     )
 
                 slot["image"] = next_image
                 slot["aux_features"] = next_aux_features
-                slot["hidden"] = slot["pending_hidden"]
+                slot["hidden"] = hidden
                 slot["episode_reward"] += reward
                 slot["info"] = info
 
                 if terminated and info["success"]:
                     slot["episode_success"] = True
-
                 if done:
+                    slot["episode_spl"] = float(info.get("spl", 0.0))
                     slot["done"] = True
                     slot["final_image"] = next_image
                     slot["final_aux_features"] = next_aux_features
-                    slot["final_hidden"] = slot["pending_hidden"]
+                    slot["final_hidden"] = hidden
 
-        agent.store_initial_hidden(None)
-
-        agg_loss = {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
+        # ----- Build one rollout dict per slot and run a SINGLE batched update. -----
+        rollouts = []
         for slot in slots:
-            agent.store_initial_hidden(None)
-            for transition in slot["transitions"]:
-                agent.store(
-                    image=transition["image"],
-                    aux_features=transition["aux_features"],
-                    action=transition["action"],
-                    log_prob=transition["log_prob"],
-                    reward=transition["reward"],
-                    value=transition["value"],
-                    done=transition["done"],
-                )
-            slot_loss = agent.update(
-                next_image=slot["final_image"],
-                next_aux_features=slot["final_aux_features"],
-                final_hidden=slot["final_hidden"],
+            trans = slot["transitions"]
+            if not trans:
+                continue
+            images = torch.stack([t["image"] for t in trans]).to(device)
+            aux_feats = torch.stack([t["aux_features"] for t in trans]).to(device)
+            log_probs = torch.stack([t["log_prob"] for t in trans]).detach().to(device)
+            values = torch.stack([t["value"] for t in trans]).detach().to(device)
+            actions = torch.tensor(
+                [t["action"] for t in trans], dtype=torch.long, device=device,
             )
-            for k in agg_loss:
-                agg_loss[k] += slot_loss[k]
+            rewards_list = [float(t["reward"]) for t in trans]
+            dones_list = [bool(t["done"]) for t in trans]
 
-        n_slots = max(len(slots), 1)
-        loss_dict = {k: v / n_slots for k, v in agg_loss.items()}
+            rollouts.append({
+                "images":            images,
+                "aux_features":      aux_feats,
+                "actions":           actions,
+                "log_probs":         log_probs,
+                "rewards":           rewards_list,
+                "values":            values,
+                "dones":             dones_list,
+                "initial_hidden":    slot["initial_hidden"],  # None here (start of ep)
+                "next_image":        slot["final_image"],
+                "next_aux_features": slot["final_aux_features"],
+                "final_hidden":      slot["final_hidden"],
+            })
+
+        if rollouts:
+            loss_dict = agent.update_from_rollouts(rollouts)
+        else:
+            loss_dict = {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
 
         if trajectory_logger is not None:
             trajectory_logger.flush()
 
+        # ----- Logging / checkpointing -----
         for slot in slots:
             current_episode = slot["episode"]
             info = slot["info"]
             rewards.append(slot["episode_reward"])
             episode_lengths.append(info["step"])
             successes.append(slot["episode_success"])
+            spls.append(slot["episode_spl"])
 
             if use_wandb and wandb is not None:
                 log_dict = {
@@ -414,26 +401,29 @@ def run_agent(
                     "episode_length": info["step"],
                     "success": float(slot["episode_success"]),
                     "success_rate_10": float(np.mean(successes[-10:])),
+                    "spl": slot["episode_spl"],
+                    "spl_10": float(np.mean(spls[-10:])),
                     "num_sense_actions": slot["episode_num_sense_actions"],
                     "final_downgrade": info["downgrade"],
                     "final_sensing_budget": info["sensing_budget"],
                     "initial_distance": info["initial_distance"],
                     "final_distance": info["current_distance"],
                     "min_distance_seen": info["min_distance_seen"],
+                    "optimal_path_length": info.get("optimal_path_length", float("nan")),
+                    "path_length": info.get("path_length", float("nan")),
                     **loss_dict,
                 }
 
                 if current_episode % video_every == 0 and slot["frames"]:
                     video_np = np.stack(slot["frames"]).transpose(0, 3, 1, 2)
                     log_dict["video"] = wandb.Video(
-                        video_np,
-                        fps=4,
-                        format="mp4",
+                        video_np, fps=4, format="mp4",
                         caption=(
                             f"ep{current_episode} | "
                             f"{slot['env'].target_obj_type} | "
                             f"{'success' if slot['episode_success'] else 'fail'} | "
-                            f"reward={slot['episode_reward']:.2f}"
+                            f"reward={slot['episode_reward']:.2f} | "
+                            f"spl={slot['episode_spl']:.2f}"
                         ),
                     )
 
@@ -445,6 +435,7 @@ def run_agent(
                         slot["env"].scene,
                         slot["env"].target_obj_type,
                         slot["episode_success"],
+                        slot["episode_spl"],
                         slot["episode_reward"],
                         info["step"],
                         slot["episode_num_sense_actions"],
@@ -458,13 +449,13 @@ def run_agent(
                     f"reward (last 10): {np.mean(rewards[-10:]):.3f} | "
                     f"steps: {np.mean(episode_lengths[-10:]):.1f} | "
                     f"success: {np.mean(successes[-10:]):.0%} | "
+                    f"spl: {np.mean(spls[-10:]):.3f} | "
                     f"sense actions: {slot['episode_num_sense_actions']}"
                 )
 
             if (current_episode + 1) % checkpoint_every == 0:
                 ckpt_path = f"{checkpoint_dir}/ep{current_episode + 1}.pt"
                 save_checkpoint(agent.policy, agent.optimizer, current_episode + 1, ckpt_path)
-
                 if hf_push and hf_api and (current_episode + 1) % hf_push_every == 0:
                     push_to_hub(hf_api, hf_repo_id, ckpt_path, current_episode + 1)
 
@@ -476,21 +467,20 @@ def run_agent(
     if use_wandb and wandb is not None and episode_table is not None:
         wandb.log({"episodes_table": episode_table})
 
-    return rewards, episode_lengths, successes
+    return rewards, episode_lengths, successes, spls
 
-def output_data(rewards, successes, episode_lengths, run_type, params, filename):
+
+def output_data(rewards, successes, episode_lengths, spls, run_type, params, filename):
     Path(filename).parent.mkdir(parents=True, exist_ok=True)
 
     if len(rewards) == 0:
-        mean_reward = 0.0
-        success_pct = 0.0
-        mean_ep_len = 0.0
-        final_mean_reward = 0.0
+        mean_reward = success_pct = mean_ep_len = final_mean_reward = mean_spl = 0.0
     else:
         mean_reward = float(np.mean(rewards))
         success_pct = float(np.mean(successes) * 100)
         mean_ep_len = float(np.mean(episode_lengths))
         final_mean_reward = float(np.mean(rewards[-10:]))
+        mean_spl = float(np.mean(spls)) if spls else 0.0
 
     with open(filename, "a", encoding="utf-8") as f:
         f.write(f"Type: {run_type}\n")
@@ -499,8 +489,10 @@ def output_data(rewards, successes, episode_lengths, run_type, params, filename)
         f.write(f"Mean Reward: {mean_reward:.4f}\n")
         f.write(f"Final Mean Reward (last 10): {final_mean_reward:.4f}\n")
         f.write(f"Success Rate: {success_pct:.2f}%\n")
+        f.write(f"Mean SPL: {mean_spl:.4f}\n")
         f.write(f"Mean Episode Length: {mean_ep_len:.4f}\n")
         f.write("-" * 40 + "\n")
+
 
 def _apply_agent_mode_defaults(agent_type: str, agent_cfg: dict, env_cfg: dict) -> str:
     agent_label = agent_type
@@ -509,19 +501,13 @@ def _apply_agent_mode_defaults(agent_type: str, agent_cfg: dict, env_cfg: dict) 
         return agent_label
 
     mode = agent_cfg.get("mode", "baseline")
-
     if mode not in {"poc", "baseline"}:
-        raise ValueError(
-            f"Invalid high_res mode={mode!r}. Use 'poc' or 'baseline'."
-        )
+        raise ValueError(f"Invalid high_res mode={mode!r}. Use 'poc' or 'baseline'.")
 
     agent_label = f"high_res_{mode}"
-
-    # HighResBaseline is always directly high-res.
     env_cfg["fixed_high_res"] = True
     env_cfg["max_sensing_budget"] = 0
 
-    # No sensing cost for high-res baseline.
     reward_cfg = dict(env_cfg.get("reward_cfg", {}))
     reward_cfg["sense_penalty"] = 0.0
     reward_cfg["oversensing_penalty"] = 0.0
@@ -536,6 +522,7 @@ def _apply_agent_mode_defaults(agent_type: str, agent_cfg: dict, env_cfg: dict) 
 
     return agent_label
 
+
 def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type: str | None = None) -> dict:
     tcfg = cfg["training"]
     env_cfg = dict(cfg["env"])
@@ -549,9 +536,7 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
         agent_type = cfg.get("agent_type", "adaptive")
 
     agent_label = _apply_agent_mode_defaults(
-        agent_type=agent_type,
-        agent_cfg=agent_cfg,
-        env_cfg=env_cfg,
+        agent_type=agent_type, agent_cfg=agent_cfg, env_cfg=env_cfg,
     )
 
     tcfg["checkpoint_dir"] = str(Path(tcfg["checkpoint_dir"]) / agent_label)
@@ -571,10 +556,10 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
         )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("device=", device)
 
     fixed_target_object, target_object_cycle = _resolve_target_setup(
-        training_cfg=tcfg,
-        env_cfg=env_cfg,
+        training_cfg=tcfg, env_cfg=env_cfg,
     )
 
     reward_cfg = RewardConfig(**env_cfg.pop("reward_cfg", {}))
@@ -606,10 +591,6 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
         )
     model_cfg["target_object_embed_dim"] = env_target_embed_dim
 
-    # ------------------------------------------------------------------
-    # Target-object vocabulary.
-    # Sorted for deterministic idx assignment across reruns / checkpoints.
-    # ------------------------------------------------------------------
     target_cfg = cfg["training"].get("target") or {}
     target_vocab = (
         target_cfg.get("candidates")
@@ -621,17 +602,13 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
     if not target_vocab:
         raise ValueError(
             "training.target must specify `candidates`, `cycle`, or `object_type` "
-            "so the policy knows the target-object vocabulary. Even for "
-            "mode=random, set `candidates` to the closed list of allowed objects."
+            "so the policy knows the target-object vocabulary."
         )
     target_vocab = sorted(set(target_vocab))
     print(f"[target-vocab] {len(target_vocab)} object(s): {target_vocab}")
     for env in envs:
         env.set_target_vocab(target_vocab)
 
-    # ------------------------------------------------------------------
-    # Policy
-    # ------------------------------------------------------------------
     policy = AgentPolicy(
         n_actions=len(envs[0].action_list),
         encoder_name=cfg.get("visual_encoder", {}).get("model_name", "dinov2_vitb14"),
@@ -640,56 +617,42 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
         device=device,
     ).to(device)
 
-    # ------------------------------------------------------------------
-    # Agent — inline dispatch replaces build_agent() so each baseline
-    # receives its env-derived indices at construction time.
-    # ------------------------------------------------------------------
     ref_env = envs[0]
     sense_action_idx   = ref_env.action_list.index("SENSE") if "SENSE" in ref_env.action_list else -1
     budget_feature_idx = ref_env.budget_idx
 
-    # Strip baseline-specific keys before forwarding to PPOAgent base.
-    ppo_kwargs = {k: v for k, v in agent_cfg.items()
-                  if k not in {"sense_prob", "sense_interval", "mode"}}
+    ppo_kwargs = {
+        k: v for k, v in agent_cfg.items()
+        if k not in {"sense_prob", "sense_interval", "mode"}
+    }
 
     if agent_type == "random_sensing":
         agent = RandomSensingBaseline(
-            policy=policy,
-            sense_action_idx=sense_action_idx,
+            policy=policy, sense_action_idx=sense_action_idx,
             budget_feature_idx=budget_feature_idx,
             sense_prob=agent_cfg.get("sense_prob", 0.2),
             **ppo_kwargs,
         )
     elif agent_type == "fixed_schedule":
         agent = FixedScheduleBaseline(
-            policy=policy,
-            sense_action_idx=sense_action_idx,
+            policy=policy, sense_action_idx=sense_action_idx,
             budget_feature_idx=budget_feature_idx,
             sense_interval=agent_cfg.get("sense_interval", 10),
             **ppo_kwargs,
         )
     elif agent_type == "low_res":
         agent = LowResBaseline(
-            policy=policy,
-            sense_action_idx=sense_action_idx,
-            **ppo_kwargs,
+            policy=policy, sense_action_idx=sense_action_idx, **ppo_kwargs,
         )
     elif agent_type == "high_res":
         agent = HighResBaseline(policy=policy, **ppo_kwargs)
     elif agent_type == "adaptive":
         agent = PPOAgent(policy=policy, **ppo_kwargs)
     else:
-        raise ValueError(
-            f"Unknown agent_type '{agent_type}'. "
-            f"Choose from: adaptive, low_res, high_res, random_sensing, fixed_schedule."
-        )
+        raise ValueError(f"Unknown agent_type '{agent_type}'.")
 
-    # ------------------------------------------------------------------
-    # Optional checkpoint resume
-    # ------------------------------------------------------------------
     start_episode = 0
     resume_path = resume_path or tcfg.get("resume_from")
-
     if resume_path:
         ckpt = torch.load(resume_path, map_location=device, weights_only=False)
         ckpt_vocab = ckpt.get("target_object_vocab")
@@ -705,20 +668,14 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
         start_episode = ckpt["episode"]
         print(f"Resumed from {resume_path} (episode {start_episode})")
 
-    # ------------------------------------------------------------------
-    # Training loop
-    # ------------------------------------------------------------------
     traj_logger = TrajectoryLogger.from_cfg(
         output_dir=tcfg["output_dir"],
         traj_cfg=cfg.get("trajectory_logging", {}),
     )
 
     try:
-        rewards, episode_lengths, successes = run_agent(
-            envs=envs,
-            agent=agent,
-            cfg=cfg,
-            device=device,
+        rewards, episode_lengths, successes, spls = run_agent(
+            envs=envs, agent=agent, cfg=cfg, device=device,
             start_episode=start_episode,
             fixed_target_object=fixed_target_object,
             target_object_cycle=target_object_cycle,
@@ -726,11 +683,9 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
         )
 
         output_data(
-            rewards=rewards,
-            successes=successes,
-            episode_lengths=episode_lengths,
-            run_type=agent_label,
-            params=agent_cfg,
+            rewards=rewards, successes=successes,
+            episode_lengths=episode_lengths, spls=spls,
+            run_type=agent_label, params=agent_cfg,
             filename=f"{tcfg['output_dir']}/training_log.txt",
         )
     finally:
@@ -748,17 +703,19 @@ def run_training_pipeline(cfg: dict, resume_path: str | None = None, agent_type:
         "episodes":             len(rewards),
         "mean_reward":          float(np.mean(rewards))        if rewards else 0.0,
         "success_rate":         float(np.mean(successes))      if successes else 0.0,
+        "mean_spl":             float(np.mean(spls))           if spls else 0.0,
         "mean_episode_length":  float(np.mean(episode_lengths)) if episode_lengths else 0.0,
         "output_log":           f"{tcfg['output_dir']}/training_log.txt",
     }
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--cfg", default="cfgs/train_rl.yaml", help="path to YAML config")
     parser.add_argument("--resume", default=None, help="path to checkpoint .pt to resume from")
-    parser.add_argument("--agent", default=None, choices=list(AGENT_REGISTRY.keys()), help="agent type (overrides config agent_type field)")
+    parser.add_argument("--agent", default=None, choices=list(AGENT_REGISTRY.keys()),
+                        help="agent type (overrides config agent_type field)")
 
     args = parser.parse_args()
-
     cfg = load_cfg(args.cfg)
     run_training_pipeline(cfg=cfg, resume_path=args.resume, agent_type=args.agent)

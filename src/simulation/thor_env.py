@@ -10,6 +10,7 @@ from ai2thor.platform import CloudRendering
 
 from src.utils.image_resolution import degrade_resolution
 
+
 @dataclass
 class RewardConfig:
     step_penalty: float = 0.002
@@ -19,6 +20,17 @@ class RewardConfig:
     fail_penalty: float = 1.0
     success_reward: float = 5.0
     distance_scale: float = 0.01
+
+    # --- NEW ---
+    # If True, give a signed shaping reward proportional to (prev_dist - curr_dist):
+    # positive when getting closer, negative when getting further.
+    # Defaults to True — this is the standard potential-based shaping which keeps
+    # the optimal policy invariant (Ng et al. 1999) when applied symmetrically.
+    use_signed_progress: bool = True
+    # One-shot bonus the first time the target becomes visible in the episode.
+    # Helps unblock exploration in active visual search without distorting the
+    # reward geometry. Set to 0.0 to disable.
+    first_visibility_bonus: float = 0.5
 
 
 MOVE_ACTIONS = {"MoveAhead", "MoveRight", "MoveLeft", "MoveBack"}
@@ -81,19 +93,13 @@ class ThorEnv:
     """
 
     # ------------------------------------------------------------------
-    # Aux-features layout constants
-    # These are the *dimensionalities* of each block, in order.
-    # The offset of any block = cumulative sum of previous blocks.
-    # Centralising here means:
-    #   - baselines can read env.budget_idx instead of hardcoding an offset,
-    #   - PolicyLSTM can compute input_dim from env.aux_features_dim,
-    #   - changing the layout auto-propagates to all consumers.
+    # Aux-features layout constants (unchanged)
     # ------------------------------------------------------------------
-    _AUX_GPS_DIM        = 2   # x, z  (y dropped: agent height is ~constant)
-    _AUX_COMPASS_DIM    = 4   # sin(yaw), cos(yaw), sin(horizon), cos(horizon)
+    _AUX_GPS_DIM        = 2
+    _AUX_COMPASS_DIM    = 4
     _AUX_RESOLUTION_DIM = 1
     _AUX_BUDGET_DIM     = 1
-    _AUX_TARGET_IDX_DIM = 1   # we emit the idx, not the embedding
+    _AUX_TARGET_IDX_DIM = 1
 
     def __init__(
         self,
@@ -128,11 +134,9 @@ class ThorEnv:
         self.look_degrees = look_degrees
         self.visibility_distance = visibility_distance
         self.target_object_embed_dim = target_object_embed_dim
+        
+        self.enforce_initial_distance = True
 
-        # Closed-set target vocabulary. Populated by set_target_vocab() from
-        # train.py, sourced from training.target.candidates in the YAML config.
-        # Kept in the env (not just the policy) because get_aux_features() must
-        # emit the integer index that the policy's nn.Embedding will look up.
         self._target_vocab: list[str] = []
         self._target_to_idx: dict[str, int] = {}
 
@@ -195,13 +199,18 @@ class ThorEnv:
         self._reset_count = 0
         self.randomize_object_spawn = randomize_object_spawn
 
-        # episode state — populated by reset()
+        # Episode state — populated by reset()
         self._step_count = 0
         self._current_action = "MoveAhead"
         self._current_downgrade = 0 if self.fixed_high_res else self.base_downgrade
         self._remaining_sensing_budget = 0 if self.fixed_high_res else self.max_sensing_budget
         self._last_sense_was_valid = True
         self._closest_distance = np.inf
+        self._prev_distance = np.inf            # for signed shaping
+        self._target_ever_visible = False        # for first-visibility bonus
+        self._optimal_path_length = float("inf")  # for SPL
+        self._path_length = 0.0                  # accumulated path length, for SPL
+        self._prev_agent_xz = None               # for incremental path length
         self._done = False
         self.current_event = None
         self.target_obj_type = None
@@ -214,26 +223,18 @@ class ThorEnv:
     # ------------------------------------------------------------------
 
     def set_target_vocab(self, vocab: list[str]) -> None:
-        """Register the closed list of object names the policy can embed.
-
-        Must be called once after env construction and before reset(). Ordering
-        is preserved verbatim — train.py is responsible for sorting it for
-        deterministic idx assignment.
-        """
         self._target_vocab = list(vocab)
         self._target_to_idx = {name: i for i, name in enumerate(self._target_vocab)}
 
     # ------------------------------------------------------------------
-    # Aux-features layout properties
+    # Aux-features layout properties (unchanged)
     # ------------------------------------------------------------------
 
     @property
-    def gps_idx(self) -> int:
-        return 0
+    def gps_idx(self) -> int: return 0
 
     @property
-    def compass_idx(self) -> int:
-        return self._AUX_GPS_DIM
+    def compass_idx(self) -> int: return self._AUX_GPS_DIM
 
     @property
     def prev_action_idx_offset(self) -> int:
@@ -245,17 +246,14 @@ class ThorEnv:
 
     @property
     def budget_idx(self) -> int:
-        """Position of the sensing-budget scalar inside get_aux_features() output."""
         return self.resolution_idx + self._AUX_RESOLUTION_DIM
 
     @property
     def target_idx_position(self) -> int:
-        """Position of the target-object index (last scalar)."""
         return self.budget_idx + self._AUX_BUDGET_DIM
 
     @property
     def aux_features_dim(self) -> int:
-        """Total dimensionality of the vector returned by get_aux_features()."""
         return (
             self._AUX_GPS_DIM
             + self._AUX_COMPASS_DIM
@@ -265,12 +263,80 @@ class ThorEnv:
             + self._AUX_TARGET_IDX_DIM
         )
 
+    def _teleport_agent_at_distance(
+        self,
+        d_min: float = 2.0,
+        d_max: float = 3.0,
+        use_geodesic: bool = True,
+        rng: np.random.Generator | None = None,
+    ) -> bool:
+        rng = rng or np.random.default_rng(
+            int(self.seed) + 100_000 * int(self.env_id) + int(self._reset_count)
+        )
+
+        # 1) Get target object position + id from current metadata
+        objects = self.current_event.metadata["objects"]
+        matches = [o for o in objects if o["objectType"] == self.target_obj_type]
+        if not matches:
+            return False
+        target_obj = matches[0]
+        target_object_id = target_obj["objectId"]
+        target_position = target_obj["position"]
+        tx, tz = target_position["x"], target_position["z"]
+
+        # 2) Get all reachable positions
+        event = self.controller.step(action="GetReachablePositions")
+        reachable = event.metadata["actionReturn"]
+        if not reachable:
+            return False
+
+        # 3) Filter by Euclidean distance first (cheap)
+        candidates = [
+            (p, math.sqrt((p["x"] - tx) ** 2 + (p["z"] - tz) ** 2))
+            for p in reachable
+        ]
+        candidates = [(p, d) for p, d in candidates if d_min <= d <= d_max]
+        if not candidates:
+            return False
+
+        # 4) Optionally refine with geodesic distance (true path length)
+        if use_geodesic:
+            refined = []
+            for p, _ in candidates:
+                path_event = self.controller.step(
+                    action="GetShortestPath",
+                    position=p,
+                    objectId=target_object_id,
+                )
+                if path_event.metadata["lastActionSuccess"]:
+                    corners = path_event.metadata["actionReturn"]["corners"]
+                    gd = sum(
+                        math.sqrt((a["x"] - b["x"]) ** 2 + (a["z"] - b["z"]) ** 2)
+                        for a, b in zip(corners[:-1], corners[1:])
+                    )
+                    if d_min <= gd <= d_max:
+                        refined.append((p, gd))
+            if refined:
+                candidates = refined
+
+        # 5) Pick one and teleport
+        chosen_pos, _ = candidates[rng.integers(len(candidates))]
+        rot_y = float(rng.choice([0, 90, 180, 270]))
+
+        self.current_event = self.controller.step(
+            action="Teleport",
+            position=chosen_pos,
+            rotation={"x": 0, "y": rot_y, "z": 0},
+            horizon=0,
+            standing=True,
+        )
+        return self.current_event.metadata["lastActionSuccess"]
+
     # ------------------------------------------------------------------
     # Gymnasium interface
     # ------------------------------------------------------------------
 
-    def reset(self, scene: str, target_obj_type: str = None) -> torch.Tensor:
-        """Start a new episode. Returns the first observation."""
+    def reset(self, scene: str, episode: int, target_obj_type: str = None,) -> torch.Tensor:
         self.scene = scene
         self.controller.reset(scene)
 
@@ -291,7 +357,6 @@ class ThorEnv:
             forceVisible=True,
         )
 
-        # Cache scene bounds and agent start for GPS normalisation in get_aux_features().
         event = self.controller.step("GetReachablePositions")
         positions = event.metadata["actionReturn"]
         xs = [p["x"] for p in positions]
@@ -300,8 +365,6 @@ class ThorEnv:
             "x_min": min(xs), "x_max": max(xs),
             "z_min": min(zs), "z_max": max(zs),
         }
-        agent_position = self.current_event.metadata["agent"]["position"]
-        self._agent_start = (agent_position["x"], agent_position["z"])
 
         self._reset_count += 1
 
@@ -315,6 +378,8 @@ class ThorEnv:
                 f"fixed_high_res=True but reset set _current_downgrade={self._current_downgrade}"
             )
         self._last_sense_was_valid = True
+        self._target_ever_visible = False
+        self._path_length = 0.0
         self._done = False
 
         if target_obj_type:
@@ -322,17 +387,35 @@ class ThorEnv:
         else:
             self._define_target()
 
+        # ---- Force a controlled initial distance to the target ----
+        if self.enforce_initial_distance:
+            # curriculum learning
+            d_target = min(1.5 + 0.001 * episode, 4.0)   # 1m → 3m with 2000 ép
+            d_min, d_max = d_target - 0.5, d_target + 0.5
+            self._teleport_agent_at_distance(
+                d_min=d_min,
+                d_max=d_max,
+                use_geodesic=True,
+            )
+            # else: silent fallback to default AI2-THOR spawn
+
+        # Set agent start tracking AFTER any teleport so SPL/path_length are correct
+        agent_position = self.current_event.metadata["agent"]["position"]
+        self._agent_start = (agent_position["x"], agent_position["z"])
+        self._prev_agent_xz = (agent_position["x"], agent_position["z"])
+
         self._closest_distance = self._get_min_distance_to_object(self.target_obj_type)
+        self._prev_distance = self._closest_distance
         self._initial_distance = self._closest_distance
         self._min_distance_seen = self._closest_distance
+
+        # Compute shortest path for SPL. Falls back to euclidean initial distance
+        # if AI2-THOR's path planner fails (it does, occasionally, on some scenes).
+        self._optimal_path_length = self._compute_optimal_path_length()
 
         return self._compute_obs()
 
     def step(self, action_idx: int):
-        """
-        Execute one action.
-        Returns: (obs, reward, terminated, truncated, info)
-        """
         action = self.action_list[action_idx]
         self._step_count += 1
         self._current_action = action
@@ -353,6 +436,16 @@ class ThorEnv:
         if action in MOVE_ACTIONS and not self.fixed_high_res:
             self._current_downgrade = self.base_downgrade
 
+        # Accumulate path length on actual displacement (only successful moves).
+        if action in MOVE_ACTIONS and self.current_event.metadata["lastActionSuccess"]:
+            agent_pos = self.current_event.metadata["agent"]["position"]
+            cur_xz = (agent_pos["x"], agent_pos["z"])
+            if self._prev_agent_xz is not None:
+                dx = cur_xz[0] - self._prev_agent_xz[0]
+                dz = cur_xz[1] - self._prev_agent_xz[1]
+                self._path_length += math.sqrt(dx * dx + dz * dz)
+            self._prev_agent_xz = cur_xz
+
         truncated = self._fail_checker()
         obs = self._compute_obs()
 
@@ -360,7 +453,21 @@ class ThorEnv:
         self._min_distance_seen = min(self._min_distance_seen, current_distance)
 
         task_success = self._check_success()
-        reward = self._compute_reward(truncated=truncated, task_success=task_success)
+        # Track first time the target becomes visible (for first-visibility bonus).
+        target_visible_now = self._is_target_visible()
+
+        reward = self._compute_reward(
+            truncated=truncated,
+            task_success=task_success,
+            current_distance=current_distance,
+            target_visible_now=target_visible_now,
+        )
+
+        # Update tracker AFTER reward computation so the bonus fires exactly once.
+        if target_visible_now:
+            self._target_ever_visible = True
+
+        self._prev_distance = current_distance
 
         terminated = action == "DONE" or (
             self.auto_success_on_goal and task_success
@@ -372,6 +479,10 @@ class ThorEnv:
                 f"after action={action}, step={self._step_count}"
             )
 
+        spl = self._compute_spl(task_success=task_success or self._is_episode_success_for_spl(
+            terminated=terminated, truncated=truncated, task_success=task_success,
+        ))
+
         info = {
             "step": self._step_count,
             "downgrade": self._current_downgrade,
@@ -382,6 +493,9 @@ class ThorEnv:
             "initial_distance": self._initial_distance,
             "current_distance": current_distance,
             "min_distance_seen": self._min_distance_seen,
+            "optimal_path_length": self._optimal_path_length,
+            "path_length": self._path_length,
+            "spl": spl,
         }
 
         self._done = terminated or truncated
@@ -397,7 +511,7 @@ class ThorEnv:
         self.seed = seed
 
     # ------------------------------------------------------------------
-    # Observation
+    # Observation (unchanged)
     # ------------------------------------------------------------------
 
     def _compute_obs(self) -> torch.Tensor:
@@ -451,12 +565,6 @@ class ThorEnv:
         return float(np.linalg.norm(agent_vec - obj_vec))
 
     def _get_target_object_idx(self) -> int:
-        """Return the integer index of the current target object.
-
-        The policy's nn.Embedding maps this idx to a learned vector. We emit the
-        raw idx (not the embedding) so the embedding stays a learnable
-        parameter in the policy, rather than a fixed function of the name.
-        """
         if not self._target_to_idx:
             raise RuntimeError(
                 "Target vocabulary not set. Call env.set_target_vocab([...]) "
@@ -471,23 +579,122 @@ class ThorEnv:
             )
         return self._target_to_idx[name]
 
+    def _is_target_visible(self) -> bool:
+        """True if any instance of the target type is currently visible."""
+        return any(
+            o["visible"]
+            for o in self.current_event.metadata["objects"]
+            if o["objectType"] == self.target_obj_type
+        )
+
+    # ------------------------------------------------------------------
+    # SPL helpers
+    # ------------------------------------------------------------------
+
+    def _compute_optimal_path_length(self) -> float:
+        """Shortest path length from agent start to the target object.
+
+        Uses AI2-THOR's built-in path planner. Falls back to the initial
+        euclidean distance if the planner fails (which happens on some scenes
+        and configurations). The fallback is an *under-estimate* of the true
+        shortest path, so it inflates SPL slightly — but it never crashes.
+        """
+        try:
+            from ai2thor.util.metrics import get_shortest_path_to_object_type
+        except Exception:
+            return float(self._initial_distance)
+
+        agent_pos = self.current_event.metadata["agent"]["position"]
+        try:
+            corners = get_shortest_path_to_object_type(
+                controller=self.controller,
+                object_type=self.target_obj_type,
+                initial_position=dict(
+                    x=agent_pos["x"], y=agent_pos["y"], z=agent_pos["z"]
+                ),
+            )
+        except Exception:
+            return float(self._initial_distance)
+
+        if not corners or len(corners) < 2:
+            return float(self._initial_distance)
+
+        total = 0.0
+        for a, b in zip(corners[:-1], corners[1:]):
+            dx = b["x"] - a["x"]
+            dz = b["z"] - a["z"]
+            total += math.sqrt(dx * dx + dz * dz)
+        # Clamp to a minimum to avoid division explosions.
+        return max(total, 1e-3)
+
+    def _compute_spl(self, task_success: bool) -> float:
+        """SPL = success * (shortest_path / max(path, shortest_path)).
+
+        Standard PointNav/ObjectNav metric (Anderson et al. 2018).
+        """
+        if not task_success:
+            return 0.0
+        sp = float(self._optimal_path_length)
+        pl = float(self._path_length)
+        if sp <= 0.0:
+            return 0.0
+        return sp / max(pl, sp)
+
+    def _is_episode_success_for_spl(self, terminated: bool, truncated: bool, task_success: bool) -> bool:
+        """SPL is only credited if the episode actually terminated successfully.
+        Truncation (timeout) does not count, even if task_success briefly held.
+        """
+        if not task_success:
+            return False
+        if terminated:
+            return True
+        return False
+
     # ------------------------------------------------------------------
     # Reward / termination
     # ------------------------------------------------------------------
 
-    def _compute_reward(self, truncated: bool, task_success: bool | None = None) -> float:
+    def _compute_reward(
+        self,
+        truncated: bool,
+        task_success: bool | None = None,
+        current_distance: float | None = None,
+        target_visible_now: bool | None = None,
+    ) -> float:
         if task_success is None:
             task_success = self._check_success()
+        if current_distance is None:
+            current_distance = self._get_min_distance_to_object(self.target_obj_type)
+        if target_visible_now is None:
+            target_visible_now = self._is_target_visible()
+
         reward = 0.0
         action = self._current_action
         cfg = self.cfg
 
-        current_dist = self._get_min_distance_to_object(self.target_obj_type)
-        progress = self._closest_distance - current_dist
-        if progress > 0:
-            reward += cfg.distance_scale * progress
-            self._closest_distance = current_dist
+        # --- Distance shaping ---
+        if cfg.use_signed_progress:
+            # Bidirectional, potential-based: reward = scale * (prev - curr).
+            # Sums to scale * (initial_dist - final_dist) over the episode.
+            if math.isfinite(self._prev_distance) and math.isfinite(current_distance):
+                progress = self._prev_distance - current_distance
+                reward += cfg.distance_scale * progress
+        else:
+            # Original behaviour: one-sided shaping based on best distance so far.
+            progress = self._closest_distance - current_distance
+            if progress > 0:
+                reward += cfg.distance_scale * progress
+                self._closest_distance = current_distance
 
+        # --- First-visibility bonus (one-shot per episode) ---
+        if (
+            cfg.first_visibility_bonus > 0.0
+            and target_visible_now
+            and not self._target_ever_visible
+        ):
+            reward += cfg.first_visibility_bonus
+
+        # --- Action-specific costs ---
         if action == "SENSE":
             reward -= cfg.sense_penalty if self._last_sense_was_valid else cfg.oversensing_penalty
         elif action == "DONE":
@@ -519,23 +726,10 @@ class ThorEnv:
         )
 
     # ------------------------------------------------------------------
-    # Aux features
+    # Aux features (unchanged)
     # ------------------------------------------------------------------
 
     def get_aux_features(self, prev_action_idx: int | None = None) -> torch.Tensor:
-        """
-        Build non-visual features for the policy.
-
-        Layout (see the *_idx properties for byte-exact offsets):
-          - gps                : 2  (x, z, scene-normalised to [-1, 1])
-          - compass            : 4  (sin/cos of yaw and horizon)
-          - prev_action one-hot: n_actions
-          - resolution level   : 1  (current_downgrade / base_downgrade)
-          - sensing budget     : 1  (remaining / max)
-          - target object idx  : 1  (cast to float; policy casts back to long
-                                     for nn.Embedding lookup)
-        Total dim = self.aux_features_dim.
-        """
         if self.current_event is None:
             raise RuntimeError("Environment has not been reset yet.")
 
@@ -544,14 +738,11 @@ class ThorEnv:
         position = agent_metadata["position"]
         rotation = agent_metadata["rotation"]
 
-        # GPS: normalise (x, z) to [-1, 1] using the scene's reachable bounds.
-        # y (agent height) is ~constant in AI2-THOR and carries no navigation info.
         b = self._scene_bounds
         x_norm = 2 * (position["x"] - b["x_min"]) / (b["x_max"] - b["x_min"] + 1e-6) - 1
         z_norm = 2 * (position["z"] - b["z_min"]) / (b["z_max"] - b["z_min"] + 1e-6) - 1
         gps = torch.tensor([x_norm, z_norm], dtype=torch.float32, device=self.device)
 
-        # Compass: sin/cos encoding avoids wrap-around discontinuity at 0°/360°.
         yaw_rad = math.radians(rotation["y"])
         horizon_rad = math.radians(agent_metadata.get("cameraHorizon", 0.0))
         compass = torch.tensor(
@@ -562,27 +753,22 @@ class ThorEnv:
             dtype=torch.float32, device=self.device,
         )
 
-        # Previous action one-hot.
         prev_action = torch.zeros(
             len(self.action_list), dtype=torch.float32, device=self.device,
         )
         if prev_action_idx is not None:
             prev_action[prev_action_idx] = 1.0
 
-        # Resolution level, normalised to [0, 1].
         resolution_level = torch.tensor(
             [self._current_downgrade / max(self.base_downgrade, 1)],
             dtype=torch.float32, device=self.device,
         )
 
-        # Sensing budget, normalised to [0, 1].
         sensing_budget = torch.tensor(
             [self._remaining_sensing_budget / max(self.max_sensing_budget, 1)],
             dtype=torch.float32, device=self.device,
         )
 
-        # Target-object index (NOT the embedding).
-        # Cast to float for homogeneous cat; policy casts back to long for nn.Embedding.
         target_idx = torch.tensor(
             [float(self._get_target_object_idx())],
             dtype=torch.float32, device=self.device,
