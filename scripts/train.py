@@ -515,7 +515,7 @@ def _apply_agent_mode_defaults(agent_type: str, agent_cfg: dict, env_cfg: dict) 
 
     if mode == "poc":
         env_cfg["action_set"] = "minimal"
-        env_cfg["auto_success_on_goal"] = False
+        env_cfg["auto_success_on_goal"] = True
     else:
         env_cfg["action_set"] = "navigation"
         env_cfg["auto_success_on_goal"] = False

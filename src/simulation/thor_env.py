@@ -22,6 +22,7 @@ class RewardConfig:
     fail_done_penalty: float = 2.0
     success_reward: float = 5.0
     distance_scale: float = 0.01
+    success_distance: float = 1.5
 
     # --- NEW ---
     # If True, give a signed shaping reward proportional to (prev_dist - curr_dist):
@@ -487,7 +488,7 @@ class ThorEnv:
 
         # ---- Force a controlled initial distance to the target ----
         if self.enforce_initial_distance:
-            d_target = min(1.5 + 0.001 * episode, 4.0)
+            d_target = min(self.cfg.success_distance + 0.001 * episode, 4.0)
             d_min, d_max = d_target - 0.5, d_target + 0.5
             ok = self._teleport_agent_at_distance(
                 d_min=d_min,
@@ -606,6 +607,12 @@ class ThorEnv:
             "path_length": self._path_length,
             "spl": spl,
         }
+        # Diagnostic: log success conditions when min_distance is reached
+        target_obj = next(
+            (o for o in self.current_event.metadata["objects"]
+            if o["objectType"] == self.target_obj_type),
+            None
+        )
 
         self._done = terminated or truncated
         return obs, reward, terminated, truncated, info

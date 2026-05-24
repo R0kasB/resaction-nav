@@ -3,7 +3,7 @@ agent_type: high_res
 training:
   scenes:
     - FloorPlan1
-  num_episodes: 2000
+  num_episodes: 20000
   num_parallel_envs: 4
   auto_cluster_run_id: true
   run_id: null
@@ -21,7 +21,7 @@ training:
 env:
   target_object_embed_dim: 8
   base_resolution: [224, 224]
-  success_distance: 1
+  success_distance: 1.5
   max_steps: 50
   max_sensing_budget: 0
   fixed_high_res: true
@@ -31,8 +31,8 @@ env:
   look_degrees: 15.0
   visibility_distance: 1.5
   seed: 42
-  auto_success_on_goal: false
-  randomize_object_spawn: false
+  auto_success_on_goal: True
+  randomize_object_spawn: True
   reward_cfg:
     step_penalty: 0.01
     sense_penalty: 0.0
