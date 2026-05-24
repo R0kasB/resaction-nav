@@ -220,6 +220,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+wandb/
 
 # WandB analysis dumps
 wandb_analysis/
