@@ -1,1 +1,0 @@
-{"_step":223,"num_sense_actions":0,"_runtime":4910,"reward":-2.0419344434738163,"value_loss":0.002769904735032469,"episode_length":189,"policy_loss":-0.00519713171524927,"entropy":1.5570659637451172,"success_rate_10":0,"episode":223,"_wandb":{"runtime":4910},"_timestamp":1.778718502321451e+09,"success":0,"final_downgrade":7,"final_sensing_budget":5}

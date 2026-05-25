@@ -1,1 +1,0 @@
-{"_wandb":{"runtime":332},"episode_length":1,"_runtime":332,"success":0,"value_loss":4.779695893830649e-05,"entropy":0.2869679778814316,"success_rate_10":0,"_step":499,"reward":-1,"num_sense_actions":0,"final_sensing_budget":5,"_timestamp":1.7786970553731751e+09,"policy_loss":-0.010464379098266363,"episode":499,"final_downgrade":7}
