@@ -125,11 +125,13 @@ class ThorEnv:
         auto_success_on_goal: bool = False,
         env_id: int = 0,
         randomize_object_spawn: bool = True,
+        start_downgrade: int | None = None,
     ):
         self.target_object_types = target_object_types
         self.base_resolution = base_resolution
         self.success_distance = success_distance
         self.base_downgrade = math.floor(math.log2(min(base_resolution)))
+        self.start_downgrade = start_downgrade if start_downgrade is not None else self.base_downgrade
         self.max_steps = max_steps
         self.max_sensing_budget = max_sensing_budget
         self.move_magnitude = move_magnitude
@@ -207,7 +209,7 @@ class ThorEnv:
         # Episode state — populated by reset()
         self._step_count = 0
         self._current_action = "MoveAhead"
-        self._current_downgrade = 0 if self.fixed_high_res else self.base_downgrade
+        self._current_downgrade = 0 if self.fixed_high_res else self.start_downgrade
         self._remaining_sensing_budget = 0 if self.fixed_high_res else self.max_sensing_budget
         self._last_sense_was_valid = True
         self._closest_distance = np.inf
@@ -468,7 +470,7 @@ class ThorEnv:
 
         self._step_count = 0
         self._current_action = "MoveAhead"
-        self._current_downgrade = 0 if self.fixed_high_res else self.base_downgrade
+        self._current_downgrade = 0 if self.fixed_high_res else self.start_downgrade
         self._remaining_sensing_budget = 0 if self.fixed_high_res else self.max_sensing_budget
 
         if self.fixed_high_res and self._current_downgrade != 0:
@@ -540,7 +542,7 @@ class ThorEnv:
                 self._remaining_sensing_budget -= 1
 
         if action in MOVE_ACTIONS and not self.fixed_high_res:
-            self._current_downgrade = self.base_downgrade
+            self._current_downgrade = self.start_downgrade
 
         # Accumulate path length on actual displacement (only successful moves).
         if action in MOVE_ACTIONS and self.current_event.metadata["lastActionSuccess"]:

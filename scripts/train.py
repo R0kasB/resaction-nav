@@ -510,23 +510,27 @@ def _apply_agent_mode_defaults(agent_type: str, agent_cfg: dict, env_cfg: dict) 
         return agent_label
 
     mode = agent_cfg.get("mode", "baseline")
-    if mode not in {"poc", "poc_rokas", "baseline"}:
-        raise ValueError(f"Invalid high_res mode={mode!r}. Use 'poc', 'poc_rokas', or 'baseline'.")
+    if mode not in {"poc", "poc_rokas", "poc_rokas_adaptive", "baseline"}:
+        raise ValueError(f"Invalid high_res mode={mode!r}. Use 'poc', 'poc_rokas', 'poc_rokas_adaptive', or 'baseline'.")
 
     agent_label = f"high_res_{mode}"
-    env_cfg["fixed_high_res"] = True
-    env_cfg["max_sensing_budget"] = 0
 
-    reward_cfg = dict(env_cfg.get("reward_cfg", {}))
-    reward_cfg["sense_penalty"] = 0.0
-    reward_cfg["oversensing_penalty"] = 0.0
-    env_cfg["reward_cfg"] = reward_cfg
+    if mode != "poc_rokas_adaptive":
+        env_cfg["fixed_high_res"] = True
+        env_cfg["max_sensing_budget"] = 0
+        reward_cfg = dict(env_cfg.get("reward_cfg", {}))
+        reward_cfg["sense_penalty"] = 0.0
+        reward_cfg["oversensing_penalty"] = 0.0
+        env_cfg["reward_cfg"] = reward_cfg
 
     if mode == "poc":
         env_cfg["action_set"] = "minimal"
         env_cfg["auto_success_on_goal"] = True
     elif mode == "poc_rokas":
         env_cfg["action_set"] = "minimal"
+        env_cfg["auto_success_on_goal"] = False
+    elif mode == "poc_rokas_adaptive":
+        env_cfg["action_set"] = "full"
         env_cfg["auto_success_on_goal"] = False
     else:
         env_cfg["action_set"] = "navigation"
