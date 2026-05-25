@@ -18,7 +18,7 @@ class RewardConfig:
     oversensing_penalty: float = 0.05
     bump_penalty: float = 0.03
     fail_penalty: float = 1.0
-    wrong_done_penalty: float = 2.0
+    wrong_done_penalty: float = 1.5
     success_reward: float = 5.0
     distance_scale: float = 0.01
 
@@ -722,7 +722,8 @@ class ThorEnv:
             if o["objectType"] == self.target_obj_type
         ]
         return any(
-            o["visible"] and self._get_distance_to_position(o["position"]) <= self.success_distance
+            # o["visible"] and self._get_distance_to_position(o["position"]) <= self.success_distance
+            self._get_distance_to_position(o["position"]) <= self.success_distance
             for o in targets
         )
 

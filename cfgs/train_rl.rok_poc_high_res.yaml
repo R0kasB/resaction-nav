@@ -43,7 +43,7 @@ env:
     distance_scale: 0.05
 
 agent:
-  mode: poc
+  mode: poc_rokas
   lr: 1.0e-4
   gamma: 0.99
   clip_eps: 0.1
@@ -62,7 +62,7 @@ wandb:
   enabled: true
   project: ai2thor-rl
   entity: r0kasb-epfl
-  run_name: poc_high_res
+  run_name: poc_high_res_done
 
 trajectory_logging:
   enabled: false

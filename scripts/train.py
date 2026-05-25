@@ -501,8 +501,8 @@ def _apply_agent_mode_defaults(agent_type: str, agent_cfg: dict, env_cfg: dict) 
         return agent_label
 
     mode = agent_cfg.get("mode", "baseline")
-    if mode not in {"poc", "baseline"}:
-        raise ValueError(f"Invalid high_res mode={mode!r}. Use 'poc' or 'baseline'.")
+    if mode not in {"poc", "poc_rokas", "baseline"}:
+        raise ValueError(f"Invalid high_res mode={mode!r}. Use 'poc', 'poc_rokas', or 'baseline'.")
 
     agent_label = f"high_res_{mode}"
     env_cfg["fixed_high_res"] = True
@@ -516,6 +516,9 @@ def _apply_agent_mode_defaults(agent_type: str, agent_cfg: dict, env_cfg: dict) 
     if mode == "poc":
         env_cfg["action_set"] = "minimal"
         env_cfg["auto_success_on_goal"] = True
+    elif mode == "poc_rokas":
+        env_cfg["action_set"] = "minimal"
+        env_cfg["auto_success_on_goal"] = False
     else:
         env_cfg["action_set"] = "navigation"
         env_cfg["auto_success_on_goal"] = False
