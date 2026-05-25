@@ -219,6 +219,16 @@ class PPOAgent:
             )
             all_returns.append(returns)
             all_advantages.append(advantages)
+         
+        with torch.no_grad():
+            flat_returns = torch.cat(all_returns, dim=0)
+            flat_values = torch.cat(
+                [ro["values"].to(device) for ro in rollouts], dim=0
+            )
+            var_returns = flat_returns.var(unbiased=False)
+            explained_var = (
+                1.0 - (flat_returns - flat_values).var(unbiased=False) / (var_returns + 1e-8)
+            ).item()
 
         # --- 2. Joint advantage normalisation across the whole batch. ---
         flat_adv = torch.cat(all_advantages, dim=0)
@@ -339,6 +349,9 @@ class PPOAgent:
             "policy_loss": total_policy_loss / max(self.epochs, 1),
             "value_loss":  total_value_loss  / max(self.epochs, 1),
             "entropy":     total_entropy     / max(self.epochs, 1),
+            "R^2 | explained_variance": explained_var,
+            "returns_var": var_returns.item(),
+            "returns_mean": flat_returns.mean().item(),
         }
 
     # ------------------------------------------------------------------
