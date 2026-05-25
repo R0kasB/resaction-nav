@@ -813,7 +813,11 @@ class ThorEnv:
         if action == "SENSE":
             reward -= cfg.sense_penalty if self._last_sense_was_valid else cfg.oversensing_penalty
         elif action == "DONE":
-            reward += cfg.success_reward if task_success else -cfg.wrong_done_penalty
+            if task_success:
+                reward += cfg.success_reward
+            else:
+                dist_ratio = min(max(current_distance - self.success_distance, 0.0) / max(self.success_distance, 1e-6), 3.0)
+                reward -= cfg.wrong_done_penalty * dist_ratio
         elif not self.current_event.metadata["lastActionSuccess"]:
             reward -= cfg.bump_penalty
         else:

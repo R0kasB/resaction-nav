@@ -37,8 +37,8 @@ env:
     sense_penalty: 0.0
     oversensing_penalty: 0.0
     bump_penalty: 0.05
-    fail_penalty: 1.0
-    wrong_done_penalty: 2.0
+    fail_penalty: 2.0
+    wrong_done_penalty: 1.0
     success_reward: 10.0
     distance_scale: 0.05
 
