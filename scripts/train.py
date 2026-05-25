@@ -61,16 +61,25 @@ def load_cfg(path: str) -> dict:
         return yaml.safe_load(f)
 
 
-def save_checkpoint(policy, optimizer, episode, path):
+def save_checkpoint(policy, optimizer, episode, path, retries=3):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     tmp_path = str(path) + ".tmp"
-    torch.save({
-        "policy":              policy.state_dict(),
-        "optimizer":           optimizer.state_dict(),
-        "episode":             episode,
-        "target_object_vocab": policy.target_object_vocab,
-    }, tmp_path)
-    Path(tmp_path).rename(path)
+    for attempt in range(retries):
+        try:
+            torch.save({
+                "policy":              policy.state_dict(),
+                "optimizer":           optimizer.state_dict(),
+                "episode":             episode,
+                "target_object_vocab": policy.target_object_vocab,
+            }, tmp_path)
+            Path(tmp_path).rename(path)
+            return
+        except RuntimeError as e:
+            Path(tmp_path).unlink(missing_ok=True)
+            if attempt == retries - 1:
+                print(f"[checkpoint] failed after {retries} attempts: {e}")
+            else:
+                print(f"[checkpoint] write failed (attempt {attempt+1}), retrying...")
 
 
 def push_to_hub(api: HfApi, repo_id: str, local_path: str, episode: int):
