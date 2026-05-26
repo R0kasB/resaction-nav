@@ -20,6 +20,7 @@ class RewardConfig:
     bump_penalty: float = 0.03
     fail_penalty: float = 1.0
     wrong_done_penalty: float = 1.5
+    timeout_penalty: float = 0.5
     success_reward: float = 5.0
     distance_scale: float = 0.01
     success_distance: float = 1.5
@@ -45,10 +46,10 @@ ACTION_LIST = [
     "MoveBack",
     "RotateRight",
     "RotateLeft",
-    "LookUp",
-    "LookDown",
-    "SENSE",
+    #"LookUp",
+    #"LookDown",
     "DONE",
+    "SENSE",
 ]
 
 MINIMAL_ACTION_LIST = [
@@ -330,6 +331,28 @@ class ThorEnv:
             return float("inf")
         agent_pos = self.current_event.metadata["agent"]["position"]
         return self._geodesic_distance_from(agent_pos, matches[0]["objectId"])
+    
+    def _get_curriculum_start_downgrade(self, episode):
+        if episode < 500:
+            return 2    
+        if episode < 1000:
+            return 3
+        if episode < 1250:
+            return 4
+        if episode < 1500:
+            return 5
+        return self.base_downgrade
+
+    def _get_curriculum_sense_budget(self, episode):
+        if episode < 500:
+            return 70
+        if episode < 1000:
+            return 65
+        if episode < 1250:
+            return 60
+        if episode < 7500:
+            return 50
+        return 45
 
     def _teleport_agent_at_distance(
         self,
@@ -414,6 +437,7 @@ class ThorEnv:
         if self.randomize_object_spawn:
             self._geo_cache = {}
 
+
         print(f"[RESET] requested={scene}, current_scene={getattr(self, 'scene', None)}")
         self.scene = scene
         self._geo_cache = {}
@@ -470,8 +494,9 @@ class ThorEnv:
 
         self._step_count = 0
         self._current_action = "MoveAhead"
-        self._current_downgrade = 0 if self.fixed_high_res else self.start_downgrade
-        self._remaining_sensing_budget = 0 if self.fixed_high_res else self.max_sensing_budget
+        self._curriculum_start_downgrade = self._get_curriculum_start_downgrade(episode)
+        self._current_downgrade = 0 if self.fixed_high_res else self._curriculum_start_downgrade
+        self._remaining_sensing_budget = 0 if self.fixed_high_res else self._get_curriculum_sense_budget(episode)
 
         if self.fixed_high_res and self._current_downgrade != 0:
             raise RuntimeError(
@@ -542,7 +567,7 @@ class ThorEnv:
                 self._remaining_sensing_budget -= 1
 
         if action in MOVE_ACTIONS and not self.fixed_high_res:
-            self._current_downgrade = self.start_downgrade
+            self._current_downgrade = self._curriculum_start_downgrade
 
         # Accumulate path length on actual displacement (only successful moves).
         if action in MOVE_ACTIONS and self.current_event.metadata["lastActionSuccess"]:

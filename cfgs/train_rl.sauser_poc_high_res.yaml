@@ -2,7 +2,12 @@ agent_type: high_res
 
 training:
   scenes:
+    - FloorPlan3
     - FloorPlan1
+    - FloorPlan2
+    - FloorPlan4
+    - FloorPlan5
+    - FloorPlan6
   num_episodes: 20000
   num_parallel_envs: 4
   auto_cluster_run_id: true
@@ -13,10 +18,12 @@ training:
   checkpoint_dir: checkpoints
   resume_from: null
   target:
-    mode: fixed
-    object_type: Mug
-    cycle: null
-    candidates: ["Mug"]
+    mode: random  # random | fixed | cycle
+    object_type: null  # used when mode=fixed
+    cycle: null  # used when mode=cycle, e.g. ["Mug", "Apple"]
+    candidates:
+      - Mug
+      - Bowl   # optional whitelist used by env, e.g. ["Mug", "Apple", "Bowl"]
 
 env:
   target_object_embed_dim: 8

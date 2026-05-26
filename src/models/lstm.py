@@ -48,7 +48,7 @@ class PolicyLSTM(nn.Module):
         self.policy_head = nn.Linear(hidden_dim, n_actions)
         nn.init.zeros_(self.policy_head.bias)
         self.policy_head.bias.data[0] = 1.0  # MoveAhead encouraged
-        self.policy_head.bias.data[3] = -2.0   # DONE, not encouraged(proba ~1/40 at the begining)
+        #self.policy_head.bias.data[3] = -2.0   # DONE, not encouraged(proba ~1/40 at the begining)
         self.value_head = nn.Linear(hidden_dim, 1)
 
     def forward(self, obs: torch.Tensor, hidden=None):
