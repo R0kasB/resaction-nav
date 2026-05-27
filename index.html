@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<!--TODO: THE METADATA OF THE WEBSITE CAN BE EDITED USING THE META TAGS BELOW -->
+  <meta charset="utf-8">
+  <meta name="description"
+        content="Template project website. Replace this line with a one-sentence summary of your project.">
+  <meta name="keywords" content="project website, template, research">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Project Title</title>
+<!------------------------------------------------------------------------->
+
+
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
+        rel="stylesheet">
+
+  <link rel="stylesheet" href="./static/css/bulma.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-slider.min.css">
+  <link rel="stylesheet" href="./static/css/fontawesome.all.min.css">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="./static/css/index.css">
+  <link rel="icon" href="./static/images/favicon.svg">
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="./static/js/fontawesome.all.min.js"></script>
+  <script src="./static/js/bulma-carousel.min.js"></script>
+  <script src="./static/js/bulma-slider.min.js"></script>
+  <script src="./static/js/index.js"></script>
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+
+<!--TODO: THE HEADLINE OF THE WEBPAGE: TITLE AND AUTHORS -->
+
+<section class="hero">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-1 publication-title">Project Title</h1>
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">
+              <a href="https://people.epfl.ch/mathieu.sauser">Mathieu Sauser</a>,
+            </span>
+            <span class="author-block">
+              <a href="https://people.epfl.ch/antonin.hudry">Antonin HUDRY</a>,
+            </span>
+            <span class="author-block">
+              <a href="https://people.epfl.ch/rokas.bertasius">Rokas Bertasius</a>
+            </span>
+          </div>
+
+<!------------------------------------------------------------------------->
+
+<!--TODO: THE LINKS RELATED TO THE PROJECT -->
+          <div class="column has-text-centered">
+            <div class="publication-links">
+              <!-- GitHub Link. -->
+              <span class="link-block">
+                <a href="https://github.com/R0kasB/resaction-nav"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fab fa-github"></i>
+                  </span>
+                  <span>Project Code</span>
+                  </a>
+              </span>
+              <!-- GitHub Website Link. -->
+              <span class="link-block">
+                <a href="https://github.com/tarhanefe/cs503-project-template"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fab fa-github"></i>
+                  </span>
+                  <span>Website Code</span>
+                  </a>
+              </span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<!------------------------------------------------------------------------->
+
+<!--TODO: THE LINKS RELATED TO THE PROJECT -->
+
+<div style="display:flex; gap:10px; justify-content:center; align-items:center;">
+
+  <video id="vid1" width="25%" muted playsinline loop preload="auto">
+    <source src="./static/videos/gif_random_full.mp4" type="video/mp4">
+  </video>
+
+  <video id="vid2" width="25%" muted playsinline loop preload="auto">
+    <source src="./static/videos/gif_random_degraded_crop.mp4" type="video/mp4">
+  </video>
+
+</div>
+
+<div style="text-align:center; margin-top:10px;">
+  <button id="startBtn">▶</button>
+</div>
+
+<script>
+window.addEventListener("load", () => {
+  const v1 = document.getElementById("vid1");
+  const v2 = document.getElementById("vid2");
+  const btn = document.getElementById("startBtn");
+
+  let syncing = false;
+
+  async function startVideos() {
+    try {
+      // reset both
+      v1.pause(); v2.pause();
+      v1.currentTime = 0;
+      v2.currentTime = 0;
+
+      // ensure metadata is loaded
+      await Promise.all([
+        v1.load(),
+        v2.load()
+      ]);
+
+      // play both
+      await Promise.all([
+        v1.play(),
+        v2.play()
+      ]);
+
+      syncing = true;
+    } catch (e) {
+      console.error("Playback failed:", e);
+    }
+  }
+
+  function sync(master, slave) {
+    if (!syncing) return;
+
+    const drift = Math.abs(master.currentTime - slave.currentTime);
+
+    if (drift > 0.03) {
+      slave.currentTime = master.currentTime;
+    }
+  }
+
+  v1.addEventListener("timeupdate", () => sync(v1, v2));
+
+  // extra safety: re-sync if user seeks or stalls
+  v1.addEventListener("seeked", () => (v2.currentTime = v1.currentTime));
+
+  btn.addEventListener("click", startVideos);
+});
+</script>
+
+<!------------------------------------------------------------------------->
+
+<!--TODO: ABSTRACT OF THE PROJECT -->
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+        <div class="content has-text-justified">
+          <p>
+            <!-- TODO: Replace this abstract with your own project summary (3-5 sentences). -->
+            Current 3D navigation agents use fixed-resolution
+            images, forcing a trade-off between computational cost and
+            perceptual detail: low resolution limits object recognition, while
+            high resolution is expensive to process at every step. One solution to this problem
+            is providing an agent with the capacity of modulating the resolution of its vision,
+            giving it the possibility to navigate at low cost and identify object relactively accuratly.
+          </p>
+          <p>
+            To prove the efficacy of this solution, we consider a RL 3D navigation task in AI2-THOR where an agent must reach and center a target object in apartment scenes. 
+            The agent performs navigation actions plus a special sensing action that temporarily increases observation resolution 
+            under a limited perceptual budget. Observations include RGB input, GPS+Compass, and past actions, encoded with a 
+            memory-based model (LSTM). The reward encourages successful goal completion and efficient navigation while penalizing time, 
+            failures, and unnecessary high-resolution sensing.
+          </p>
+          <p>
+            [Results] IDK
+          </p>
+        </div>
+      </div>
+    </div>
+    <!--/ Abstract. -->
+<!------------------------------------------------------------------------->
+<!--TODO: LIST OF ITEMS IN THE WEBSITE -->
+
+<div class="columns is-centered has-text-centered">
+        <div class="column is-full-width">
+
+          <h2 class="title is-3">Overview</h2>
+          <div class="tile is-ancestor is-centered" style="vertical-align: middle;">
+            <div class="tile is-parent">
+              <a href="#intro" class="tile is-child box">
+                <p class="subtitle">
+                  <font size="-1">Introduction</font>
+                </p>
+              </a>
+            </div>
+
+            <div class="tile is-parent">
+              <a href="#related-work" class="tile is-child box">
+                <p class="subtitle">
+                  <font size="-1">Related Works</font>
+                </p>
+              </a>
+            </div>
+
+            <div class="tile is-parent">
+              <a href="#method" class="tile is-child box">
+                <p class="subtitle">
+                  <font size="-1">Methodology</font>
+                </p>
+              </a>
+            </div>
+
+            <div class="tile is-parent">
+              <a href="#results" class="tile is-child box">
+                <p class="subtitle">
+                  <font size="-1">Results</font>
+                </p>
+              </a>
+            </div>
+
+            <div class="tile is-parent">
+              <a href="#conclusion" class="tile is-child box">
+                <p class="subtitle">
+                  <font size="-1">Conclusion and Limitations</font>
+                </p>
+              </a>
+            </div>
+<!--- TODO: Remove this part, this is here to show you possible visualizations used in the website ---------------->
+
+            <div class="tile is-parent">
+              <a href="#visual_items" class="tile is-child box">
+                <p class="subtitle">
+                  <font size="-1">Visual Items</font>
+                </p>
+              </a>
+            </div>
+          </div>
+
+        </div>
+      </div>
+<!------------------------------------------------------------------------->
+  </div>
+</section>
+
+<!-----------------------------TODO: INTRODUCTION-------------------------------->
+  <section class="section">
+    <div class="container is-max-desktop">
+      <!-- Introduction. -->
+      <div class="columns is-centered">
+        <div class="column is-full-width">
+          <h2 class="title is-3" id="intro">I. Introduction</h2>
+          <div class="content has-text-justified">
+            <p>
+              Object search in 3D scenes is a common task in embodied
+              AI. An agent must move through an environment, interpret
+              images, and decide where to go in order to find an object.
+              In this project, we consider a setting where perception
+              itself is an active and constrained process. The agent initially
+              observes the scene at low resolution and may choose to
+              acquire additional information by increasing the resolution
+              of its current view before acting.
+            </p>
+            <p>
+              This project is motivated by two main observations.
+              First, biological vision operates under similar constraints:
+              perception is limited in resolution and attention is required to
+              focus on relevant parts of the scene, which can be implicitly
+              modeled through dynamic resolution. Second, selectively
+              acquiring information can be more efficient than processing
+              high-resolution images at every step, and allows the agent
+              to adapt its perception to different stages of the task, such
+              as navigation versus object recognition.
+            </p>
+            <p>
+              Most 3D navigation agents are trained on fixed resolution
+              images, but it might not be suited for all aspects of the task.
+              Prior work [Cite Zamir] has shown that agents can perform simple
+              navigation tasks even with very low resolution observations.
+              However, these agents could struggle in more complex
+              environments, e.g. when contrast is low or when objects are
+              numerous, complex or small. Navigation can be achieved with low visual 
+              information, but object recognition should require more
+              details to be precise. Moreover, continuously processing high
+              resolution images is computationally heavy and unnecessary
+              in many situations. So there is a gap to bridge to have a
+              model effective in both tasks and low cost.
+              We therefore explored a similar setting by introducing 
+              dynamic resolution, allowing the agent to improve
+              its camera resolution over time when it chooses to focus on
+              the scene currently in vision. This is also a more natural
+              approach to vision since it implicitly reflects attention.
+            </p>
+            <p>
+              Many real world systems operate under constraints on
+              sensing and computation. A realistic agent should not rely
+              on constant access to very dense information, but instead
+              learn when it should acquire additional information.
+              • More realistic perception modeling. The progressive
+              observation model captures the fact that perception is
+              limited in resolution and constrained by time/energy,
+              making the agent's vision closer to biological and real-
+              world sensing.
+              • Computational efficiency. By learning when high-
+              resolution observations are truly necessary, the agent
+              can reduce the number of expensive sensing and pro-
+              cessing operations.
+              • Robustness in complex environments. We believe that
+              low resolution models, even if they demonstrated strong
+              capacity, might struggle in more complex environments,
+              and dynamic resolution could provide an attractive trade-off
+            </p>
+          </div>
+        </div>
+      </div>
+      <!--/ Introduction. -->
+    </div>
+  </section>
+<!------------------------------------------------------------------------->
+
+<!-----------------------------TODO: RELATED WORKS-------------------------------->
+  <section class="section">
+    <div class="container is-max-desktop">
+      <!-- Related Works. -->
+      <div class="columns is-centered">
+        <div class="column is-full-width">
+          <h2 class="title is-3" id="related-work">II. Related Works</h2>
+          <div class="content has-text-justified">
+            <p>
+              As cited before, this work was largely inspired by [Cite Zamir].
+              The main difference obviously is that we incorporate a dynamic resolution instead 
+              of a sole low resolution camera, and we experiment with a slightly different task, 
+              full navigation and recognition of target object instead of navigation with a 
+              helping cue and a target position. 
+              [Cite Dynamic resolution network] explores in a
+              similar way what we tried to demonstrate, where a cheap
+              selector model is trained to select the lowest resolution
+              for a subsequent CNN model to correctly perform image
+              classification. This is related to our work as it highlights that full 
+              resolution images are not always necessary in vision models and that it is possible
+              to envision a model capable of selecting its current resolution to achieve the best trade-off
+              in a recognition task.
+              To our knowledge, there is no directly comparable setup
+              that introduces dynamic resolution in a RL agent.
+            </p>
+          </div>
+        </div>
+      </div>
+      <!--/ Related Works. -->
+    </div>
+  </section>
+<!------------------------------------------------------------------------->
+
+<!-----------------------------TODO: METHODOLOGY-------------------------------->
+  <section class="section">
+    <div class="container is-max-desktop">
+      <!-- Methodology. -->
+      <div class="columns is-centered">
+        <div class="column is-full-width">
+          <h2 class="title is-3" id="method">III. Methodology</h2>
+          <div class="content has-text-justified">
+            <p>
+              The methodology part of the report can be provided here
+            </p>
+          </div>
+        </div>
+      </div>
+      <!--/ Methodology. -->
+    </div>
+  </section>
+
+<!------------------------------------------------------------------------->
+
+<!-----------------------------TODO: RESULTS-------------------------------->
+  <section class="section">
+    <div class="container is-max-desktop">
+      <!-- Results. -->
+      <div class="columns is-centered">
+        <div class="column is-full-width">
+          <h2 class="title is-3" id="results">IV. Results</h2>
+          <div class="content has-text-justified">
+            <p>
+              The results part of the report can be provided here
+            </p>
+          </div>
+        </div>
+      </div>
+      <!--/ Results. -->
+    </div>
+  </section>
+<!------------------------------------------------------------------------->
+
+<!-----------------------------TODO: DISCUSSION-------------------------------->
+  <section class="section">
+    <div class="container is-max-desktop">
+      <!-- Conclusion and Limitations. -->
+      <div class="columns is-centered">
+        <div class="column is-full-width">
+          <h2 class="title is-3" id="conclusion">V. Conclusion and Limitations</h2>
+          <div class="content has-text-justified">
+            <p>
+              The conclusion and limitations part of the report can be provided here
+            </p>
+          </div>
+        </div>
+      </div>
+      <!--/ Conclusion and Limitations. -->
+    </div>
+  </section>
+<!------------------------------------------------------------------------->
+
+<!-----------------------------TODO: VISUAL ITEMS THAT CAN BE USED-------------------------------->
+  <section class="section">
+    <div class="container is-max-desktop">
+      <!-- Visual Items. -->
+      <div class="columns is-centered">
+        <div class="column is-full-width">
+          <h2 class="title is-3" id="visual_items">V. Visual Items</h2>
+          <div class="content has-text-justified">
+            <p>
+            Here you can see possible visualizations that can be used in this website 
+            </p>
+          </div>
+        <h3 class="title is-4">Video Clip</h3>
+       <!-- Video can be added like this -->   
+        <div class="content has-text-centered">
+          <video id="replay-video"
+                 controls
+                 muted
+                 preload
+                 playsinline
+                 width="75%">
+            <source src="./static/videos/replay.mp4"
+                    type="video/mp4">
+          </video>
+        </div>
+       <!---------------------------------> 
+           
+      <h3 class="title is-4">Image Interpolation with Slider</h3>
+       <!-- Image can be added like this -->
+        <div class="columns is-vcentered interpolation-panel">
+          <div class="column is-3 has-text-centered">
+            <img src="./static/images/interpolate_start.jpg"
+                 class="interpolation-image"
+                 alt="Interpolate start reference image."/>
+            <p>Start Frame</p>
+          </div>
+          <div class="column interpolation-video-column">
+            <div id="interpolation-image-wrapper">
+              Loading...
+            </div>
+            <input class="slider is-fullwidth is-large is-info"
+                   id="interpolation-slider"
+                   step="1" min="0" max="100" value="0" type="range">
+          </div>
+          <div class="column is-3 has-text-centered">
+            <img src="./static/images/interpolate_end.jpg"
+                 class="interpolation-image"
+                 alt="Interpolation end reference image."/>
+            <p class="is-bold">End Frame</p>
+          </div>
+        </div>
+        
+<h3 class="title is-4">Double Column Media Display</h3>
+    <div class="columns is-centered is-multiline">
+      <!-- Column 1. -->
+      <div class="column is-half">
+        <div class="content">
+          <h3 class="title is-5">Column 1</h3>
+          <p>
+            Add a short description for the first video/image.
+          </p>
+          <video id="dollyzoom" autoplay controls muted loop playsinline width="100%">
+            <source src="./static/videos/dollyzoom-stacked.mp4"
+                    type="video/mp4">
+          </video>
+        </div>
+      </div>
+      <!--/ Column 1 -->
+
+      <!-- Column 2 -->
+      <div class="column is-half">
+        <div class="content">
+          <h3 class="title is-5">Column 2</h3>
+          <p>
+            Add a short description for the second video/image.
+          </p>
+          <video id="matting-video" controls playsinline width="100%">
+            <source src="./static/videos/matting.mp4"
+                    type="video/mp4">
+          </video>
+        </div>
+      </div>
+      <!--/ Column 2 -->
+    </div>
+  <!--------------------------------->
+<h3 class="title is-4">Card Media Display</h3>
+      <div class="columns is-centered">
+        <div class="column is-three-quarters">
+          <div align="center" class="box">
+            <img src="static/images/related_2.gif"
+              alt="3D Bezier curves are used for representing 3D sketches of objects.">
+            <h5 class="subtitle has-text-centered">
+              <font size="-0.7">
+                <span style="font-weight:normal">
+                  Write about the media displayed in the card here. You can also add a link to the media if needed.
+                </span>
+              </font>
+            </h5>
+          </div>
+        </div>
+      </div>
+<!--------------------------------->
+<h3 class="title is-4">LaTeX Equation</h3>
+  
+Format the equations using LaTeX and add them to the website like this:
+    <p>
+        \[
+        D_{\mathrm{KL}}(P \parallel Q) =
+        \sum_{x} P(x)\,\log\!\left(\frac{P(x)}{Q(x)}\right)
+        \]
+    </p>
+<!--------------------------------->
+
+<h3 class="title is-4">Sliding Media Display</h3>
+    <section class="section">
+      <div class="container is-max-desktop">
+        <div id="dataset-carousel" class="carousel results-carousel">
+          <a href="./static/gifs/bike.gif" data-lightbox="image">
+            <img src="./static/gifs/bike.gif" alt="Bike Object">
+          </a>
+
+          <a href="./static/gifs/duck.gif" data-lightbox="image">
+            <img src="./static/gifs/duck.gif" alt="Duck Object">
+          </a>
+
+          <a href="./static/gifs/horse.gif" data-lightbox="image">
+            <img src="./static/gifs/horse.gif" alt="Horse Object">
+          </a>
+
+          <a href="./static/gifs/rose.gif" data-lightbox="image">
+            <img src="./static/gifs/rose.gif" alt="Rose Object">
+          </a>
+        </div>
+      </div>
+    </section>
+<!--------------------------------->
+<h3 class="title is-4">Table</h3>
+
+<div class="content has-text-justified">
+  <p>
+    The table format below can be used for results and other purposes.
+  </p>
+  <div class="table-container">
+    <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth">
+      <thead>
+        <tr>
+          <th>Method</th>
+          <th>Metric 1</th>
+          <th>Metric 2</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Baseline</td>
+          <td>0.00</td>
+          <td>0.00</td>
+          <td>Reference setup</td>
+        </tr>
+        <tr>
+          <td>Method A</td>
+          <td>0.00</td>
+          <td>0.00</td>
+          <td>First variant</td>
+        </tr>
+        <tr>
+          <td>Method B</td>
+          <td>0.00</td>
+          <td>0.00</td>
+          <td>Second variant</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!--------------------------------->
+<h3 class="title is-4">Interactive Plot</h3>
+<div class="box">
+  <iframe src="./static/plotly/interactive_plot.html" frameborder="0" width="100%"
+    height="500px"></iframe>
+</div>
+
+<!--------------------------------->
+
+        </div>
+      </div>
+      <!--/ Visual Items. -->
+    </div>
+  </section>
+
+<!------------------------------------------------------------------------->
+
+<footer class="footer">
+            <div class="container">
+              <div class="content has-text-centered">
+                <!-- Optional icon link (e.g., to GitHub repo) -->
+              </div>
+
+              <div class="columns is-centered">
+                <div class="column is-8">
+                  <div class="content">
+                    <h6 class="title is-6">Individual Contributions</h6>
+                    <p>
+                      Add the contributions of each team member here.
+                    </p>
+                    <p><em>
+                        This website is based on the <a href="https://github.com/nerfies/nerfies.github.io"
+                          target="_blank">Nerfies website template</a>,
+                        which is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-sa/4.0/"
+                          target="_blank">Creative Commons Attribution-ShareAlike 4.0 International License</a>.
+                      </em></p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </footer>
+
+</body>
+</html>
