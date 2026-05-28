@@ -295,13 +295,13 @@ window.addEventListener("load", () => {
               as navigation versus object recognition.
             </p>
             <p>
-              Most 3D navigation agents are trained on fixed resolution
-              images, but it might not be suited for all aspects of the task.
-              Prior work [Cite Zamir] has shown that agents can perform simple
-              navigation tasks even with very low resolution observations.
-              However, these agents could struggle in more complex
-              environments, e.g. when contrast is low or when objects are
-              numerous, complex or small. Navigation can be achieved with low visual 
+              Most 3D navigation agents are trained on fixed-resolution
+              images, but this setting may not be suited to all aspects of the task.
+              Prior work by Atanov <a href="#ref-atanov">[2]</a> has shown that agents can perform simple
+              navigation tasks even with very low-resolution observations.
+              However, these agents may struggle in more complex environments, for example
+              when contrast is low or when objects are numerous, complex, or small.
+              Navigation can be achieved with low visual 
               information, but object recognition should require more
               details to be precise. Moreover, continuously processing high
               resolution images is computationally heavy and unnecessary
@@ -342,144 +342,592 @@ window.addEventListener("load", () => {
 
 <!-----------------------------TODO: RELATED WORKS-------------------------------->
   <section class="section">
-    <div class="container is-max-desktop">
-      <!-- Related Works. -->
-      <div class="columns is-centered">
-        <div class="column is-full-width">
-          <h2 class="title is-3" id="related-work">II. Related Works</h2>
-          <div class="content has-text-justified">
-            <p>
-              As cited before, this work was largely inspired by [Cite Zamir].
-              The main difference obviously is that we incorporate a dynamic resolution instead 
-              of a sole low resolution camera, and we experiment with a slightly different task, 
-              full navigation and recognition of target object instead of navigation with a 
-              helping cue and a target position. 
-              [Cite Dynamic resolution network] explores in a
-              similar way what we tried to demonstrate, where a cheap
-              selector model is trained to select the lowest resolution
-              for a subsequent CNN model to correctly perform image
-              classification. This is related to our work as it highlights that full 
-              resolution images are not always necessary in vision models and that it is possible
-              to envision a model capable of selecting its current resolution to achieve the best trade-off
-              in a recognition task.
-            </p>
-            <p>
-              Navigation and object recognition tasks are common in the RL world, but to our knowledge, 
-              there is no directly comparable setup that introduces dynamic resolution in a RL agent.
-            </p>
-          </div>
+  <div class="container is-max-desktop">
+    <!-- Related Works. -->
+    <div class="columns is-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3" id="related-work">II. Related Works</h2>
+        <div class="content has-text-justified">
+          <p>
+            This work is largely inspired by the work of Atanov et al.
+            <a href="#ref-atanov">[2]</a>, which studies how far vision-based
+            agents can go with extremely low-resolution visual sensors. Their
+            work shows that simple photoreceptor-like sensors can still provide
+            enough information to solve several active vision tasks, including
+            visual navigation. Our project follows the same general motivation:
+            high-resolution visual input is not always necessary for embodied
+            decision-making.
+          </p>
+
+          <p>
+            The main difference is that we do not use a fixed low-resolution
+            camera. Instead, we introduce dynamic resolution: the agent starts
+            from degraded observations and can decide when to increase the
+            resolution of its current view. We also study a target-object
+            navigation task, where the agent must both navigate through the
+            environment and identify a target object.
+          </p>
+
+          <p>
+            Our work is also related to Dynamic Resolution Network by Zhu et al.
+            <a href="#ref-drn">[3]</a>. In that work, a lightweight resolution
+            predictor selects the lowest input resolution that still allows a
+            CNN to classify an image correctly. This supports the idea that full
+            resolution is not always required in vision models. However, their
+            method is designed for image classification, while our project
+            applies dynamic resolution to a sequential reinforcement-learning
+            setting.
+          </p>
+
+          <p>
+            Navigation and object-recognition tasks are common in reinforcement
+            learning, but to our knowledge, there is no directly comparable
+            setup that introduces dynamic resolution as an action learned by an
+            embodied RL agent.
+          </p>
         </div>
       </div>
-      <!--/ Related Works. -->
     </div>
-  </section>
+    <!--/ Related Works. -->
+  </div>
+</section>
 <!------------------------------------------------------------------------->
 
-<!-----------------------------TODO: METHODOLOGY-------------------------------->
-  <section class="section">
-    <div class="container is-max-desktop">
-      <!-- Methodology. -->
-      <div class="columns is-centered">
-        <div class="column is-full-width">
-          <h2 class="title is-3" id="method">III. Methodology</h2>
-          <div class="content has-text-justified">
-            <p>
-              1. Environement and Agent:
-              We consider a standard RL setup for 3D navigation using
-              the AI2-THOR simulator [cite AI2-Thor]. This simulator provides us with an
-              already built-in simulation environement, and default apartment scenes.
-            </p>  
-            <p>
-              <h3 class="title is-6">Example of a default scene</h3>
+<!----------------------------- METHODOLOGY -------------------------------->
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-full-width">
 
-                <div class="columns is-vcentered interpolation-panel">
-                  
-                  <div class="column interpolation-video-column">
-                    
-                    <div id="interpolation-image-wrapper">
-                      Loading...
-                    </div>
+        <h2 class="title is-3" id="method">III. Methodology</h2>
 
-                    <input class="slider is-fullwidth is-large is-info"
-                          id="interpolation-slider"
-                          step="1"
-                          min="0"
-                          max="100"
-                          value="0"
-                          type="range">
-                          
-                  </div>
+        <div class="content has-text-justified">
 
-                </div>
-            </p>
-            <p>
-              Each episode begins with a
-              target object and an initial agent pose. The goal is to navigate
-              the environment, reach a target object, and have it in the
-              field of view.
-              At each time step, the agent can perform standard navigation actions: move forward,
-              backward, left, or right by 25 cm; rotate left or right by 45
-              degrees; or end the episode, 
-              as well as a dedicated sensing action. This sensing action allows the agent
-              to increase the resolution of its current observation while
-              remaining at the same physical location. Once the agent
-              moves or rotates, the observation resets to low resolution.
-            </p>
-            <p>
-              [Scheme of the presentation]
-            </p>
-            <p>
-              At the start of each episode,
-              the environment resets the agent position, the sensing budget,
-              and the target object. The agent then has at most 200 steps to
-              find the target.
-              The episode ends when the agent is either successful in the
-              task, has spent too much time in the simulation or decides to stop the simulation. 
-              An episode is considered successful when the
-              target object is visible (1.5 m visibility distance) and close
-              (< 0.5m from the agent)
-              We define a limited perceptual ”budget” and a perceptual
-              cost, with the goal of forcing the model to only increase resolution
-              when necessary, but also to have a fair limitation between
-              different agent behavior.
-            <p>
-              The agent observations consist of the RGB returned by the AI2-Thor environment
-              degraded to the current resolution level of the agent as main input,
-              with auxilary features consisting of gps, compass, previous action, current resolution level, 
-              the remaining sensing budget and the current target [Maybe a scheme of this]
-            </p>
-              2. Downgrading image resolution: 
-              We implemented a downgrading script that degrades original
-              224x224 resolution to the defined resolution level. Input
-              image size is set to maximum resolution. For a
-              given level, the image is divided into non-overlapping square
-              blocks of size 2level x 2level. Each block is replaced by the
-              average value of its pixels. The resulting low-resolution
-              representation is then upsampled back to 224x224 using
-              nearest-neighbor interpolation.
-            <p>
-              3. Model:
-              To sample the next action, we defined a LSTM model [cite LSTM] concatenated with 
-              a frozen DINOv2 [cite DINOv2] pretrained Vision Transformer encoder to encode the 224x224 RGB images into arrays of size 768 by default.
-              From the encoded image and the auxilary features, the LSTM predicts a distribution of probability over the action space, as well as 
-              a predicted reward value, which is used in the updating policy discussed below, and a hidden layer, giving
-              the agent short-term memory to integrate past observations
-              and avoid revisiting the same locations,
-              important in this case since the problem reside in a partially observable environment.
-            </p>
-            <p>
-              4. Reward and Policy:
-              [Copy what we said in progress for policy and check code for reward]
+          <h3 class="title is-4">Task and environment</h3>
 
-          </div>
+          <p>
+            We formulate the problem as an embodied object-navigation task in
+            AI2-THOR. Each episode takes place in an apartment scene. At the
+            beginning of the episode, the agent is placed at an initial position
+            and receives a target object category. The goal is to navigate
+            through the scene and reach the target object within a limited
+            number of steps.
+          </p>
+
+          <p>
+            The environment follows a reinforcement-learning interface. At each
+            timestep, the agent receives an observation, selects an action, and
+            receives a reward. The action space of the adaptive agent includes
+            four movement actions, two rotation actions, a DONE action, and a
+            SENSE action. Movement actions displace the agent by 25 cm, while
+            rotations turn the agent by 45 degrees. The DONE action terminates
+            the episode. The SENSE action improves the resolution of the current
+            visual observation without moving the agent.
+          </p>
+
+          <p>
+            This setup is motivated by the fact that navigation and object
+            recognition do not require the same level of visual detail. Coarse
+            visual information can be enough to move through a scene, while
+            recognizing a target object may require sharper observations. Our
+            goal is therefore to test whether an agent can learn when
+            high-resolution perception is useful, instead of processing
+            high-resolution images at every step.
+          </p>
+
+
+          <h3 class="title is-4">Dynamic-resolution perception</h3>
+
+          <p>
+            The central component of our method is a dynamic-resolution
+            observation model. The agent does not always receive the original
+            RGB image. Instead, it starts from a degraded observation and can
+            spend a limited sensing budget to improve the resolution of its
+            current view.
+          </p>
+
+          <p>
+            Resolution is represented by a downgrade level. Level 0 corresponds
+            to the original image. Higher levels correspond to stronger
+            degradation. When the agent uses SENSE, the downgrade level is
+            reduced by one, making the image sharper. When the agent moves, the
+            observation is reset to the initial low-resolution level. This
+            forces the policy to decide whether visual detail is worth its
+            sensing cost.
+          </p>
+
+          <p>
+            The image degradation is implemented directly on the RGB frame. The
+            original image is resized to 224 × 224. For a downgrade level
+            \(l\), the image is divided into non-overlapping blocks of size
+            \(2^l \times 2^l\). Each block is replaced by the average value of
+            its pixels. The resulting low-resolution image is then upsampled
+            back to 224 × 224 using nearest-neighbor interpolation:
+          </p>
+
+          <p>
+            \[
+            I_l =
+            \operatorname{Upsample}
+            \left(
+              \operatorname{BlockAvg}_{2^l \times 2^l}(I)
+            \right)
+            \]
+          </p>
+
+          <p>
+            where \(I\) is the original RGB image and \(I_l\) is the degraded
+            observation at resolution level \(l\). This keeps the neural network
+            input size fixed while changing the amount of visual information
+            available to the agent.
+          </p>
+
+
+          <h3 class="title is-4">Observations and target conditioning</h3>
+
+          <p>
+            The policy receives both visual and auxiliary information. The
+            visual input is the current degraded RGB image. The auxiliary input
+            contains the normalized GPS position of the agent, compass
+            information, the previous action, the current resolution level, the
+            remaining sensing budget, and the target object index.
+          </p>
+
+          <p>
+            Target conditioning is necessary because the agent must know which
+            object it is looking for. In the current setup, the target object is
+            sampled from a restricted vocabulary containing Mug and Bowl. The
+            target index is converted into a learned embedding before being
+            passed to the policy. This allows the same policy to be trained on
+            multiple target categories instead of learning a separate policy for
+            each object.
+          </p>
+
+
+          <h3 class="title is-4">Policy architecture</h3>
+
+          <p>
+            The policy follows a recurrent actor-critic architecture. The RGB
+            image is first encoded with a frozen DINOv2 visual encoder. In the
+            main adaptive setup, we use DINOv2-base, which outputs a 768-dimensional
+            visual feature vector. This feature vector is concatenated with the
+            auxiliary features and the learned target-object embedding.
+          </p>
+
+          <p>
+            The concatenated representation is then passed to an LSTM. The LSTM
+            gives the agent memory across timesteps, which is important because
+            the task is partially observable. A single low-resolution frame may
+            not contain enough information to identify the target object or to
+            infer where the agent has already been. The recurrent state allows
+            the agent to integrate information over previous observations,
+            actions, positions, and sensing decisions.
+          </p>
+
+          <p>
+            The LSTM output is passed to two heads. The policy head outputs a
+            probability distribution over the action space. The value head
+            estimates the expected future return from the current state. These
+            two outputs are trained jointly using Proximal Policy Optimization.
+          </p>
+
+
+          <h3 class="title is-4">Reward function</h3>
+
+          <p>
+            The reward is designed to encourage the agent to reach the target
+            efficiently while penalizing unnecessary actions and unnecessary
+            high-resolution sensing. The reward contains a distance-progress
+            term, action costs, a terminal success reward, a penalty for stopping
+            too early, and a timeout penalty.
+          </p>
+
+          <p>
+            At each timestep, we compute a progress reward:
+          </p>
+
+          <p>
+            \[
+            r_t^{\mathrm{progress}} = \alpha(d_{t-1} - d_t)
+            \]
+          </p>
+
+          <p>
+            where \(d_{t-1}\) is the previous distance to the target, \(d_t\) is
+            the current distance to the target, and \(\alpha\) is the distance
+            shaping coefficient. If the agent moves closer to the target, then
+            \(d_{t-1} - d_t > 0\), so the reward is positive. If the agent moves
+            away from the target, the reward is negative.
+
+          <p>
+            The full reward can be summarized as:
+          </p>
+
+          <p>
+            \[
+            \begin{aligned}
+            r_t =
+            &\ \alpha(d_{t-1} - d_t)
+            + b_{\mathrm{vis}}\mathbf{1}_{\mathrm{first\ visible}} \\
+            &- c_{\mathrm{step}}\mathbf{1}_{\mathrm{valid\ nav}}
+            - c_{\mathrm{bump}}\mathbf{1}_{\mathrm{failed\ action}} \\
+            &- c_{\mathrm{sense}}\mathbf{1}_{\mathrm{valid\ SENSE}}
+            - c_{\mathrm{over}}\mathbf{1}_{\mathrm{invalid\ SENSE}} \\
+            &+ R_{\mathrm{success}}\mathbf{1}_{\mathrm{DONE\ and\ success}} \\
+            &- c_{\mathrm{done}}\rho_t\mathbf{1}_{\mathrm{DONE\ and\ failure}} \\
+            &- c_{\mathrm{fail}}\mathbf{1}_{\mathrm{timeout\ and\ failure}} .
+            \end{aligned}
+            \]
+          </p>
+
+          <p>
+            The wrong-DONE penalty is scaled by the distance to the target:
+          </p>
+
+          <p>
+            \[
+            \rho_t =
+            \min
+            \left(
+              \frac{\max(d_t - d_{\mathrm{success}}, 0)}
+              {d_{\mathrm{success}}},
+              3
+            \right)
+            \]
+          </p>
+
+          <p>
+            where \(d_{\mathrm{success}}\) is the success-distance threshold.
+            This means that stopping far from the target is penalized more than
+            stopping slightly outside the success radius. In the current
+            implementation, success is defined by distance to the target. The
+            visibility condition is not part of the success check, but the first
+            time the target becomes visible can still provide an additional
+            bonus.
+          </p>
+
+          <p>
+            In the main adaptive setup, we use:
+            \(R_{\mathrm{success}} = 10.0\),
+            \(c_{\mathrm{step}} = 0.01\),
+            \(c_{\mathrm{sense}} = 0.01\),
+            \(c_{\mathrm{over}} = 0.0\),
+            \(c_{\mathrm{bump}} = 0.05\),
+            \(c_{\mathrm{done}} = 2.0\),
+            \(c_{\mathrm{fail}} = 1.0\),
+            \(b_{\mathrm{vis}} = 0.5\),
+            \(\alpha = 0.5\), and
+            \(d_{\mathrm{success}} = 1.5\) m.
+          </p>
+
+          <p>
+            The sensing penalty is central to the project. If it is too low, the
+            agent may overuse high-resolution observations. If it is too high,
+            the agent may avoid sensing entirely. The adaptive-resolution
+            problem therefore depends on balancing task performance against
+            perception cost.
+          </p>
+
+
+          <h3 class="title is-4">Proof of concept: high-resolution baseline</h3>
+
+          <p>
+            Before training the full adaptive-resolution agent, we implemented a
+            high-resolution proof of concept. The goal of this PoC is to verify
+            that the environment, reward function, visual encoder, recurrent
+            policy, and PPO loop can learn a simplified version of the task.
+            This is an important sanity check: if a high-resolution agent cannot
+            learn the simplified navigation problem, then failures in the
+            adaptive setup cannot be attributed only to the difficulty of
+            learning when to sense.
+          </p>
+
+          <p>
+            In the PoC, the agent always receives full-resolution observations.
+            The SENSE action is disabled, the sensing budget is set to zero, and
+            the action space is reduced to four actions: MoveAhead, RotateLeft,
+            RotateRight, and DONE. The environment uses 224 × 224 observations,
+            a maximum episode length of 50 steps, random target sampling between
+            Mug and Bowl, and 4 parallel environments.
+          </p>
+
+
+          <h3 class="title is-4">Adaptive agent</h3>
+
+          <p>
+            The adaptive agent is the main model of the project. Unlike the PoC,
+            it receives degraded RGB observations and must learn when to use the
+            SENSE action. The adaptive agent therefore solves two coupled
+            problems: navigation and perceptual control. It must decide both
+            where to move and when additional visual detail is useful.
+          </p>
+
+          <p>
+            The adaptive setup uses six AI2-THOR scenes: FloorPlan1 to
+            FloorPlan6. The target object is sampled randomly from Mug and Bowl.
+            Episodes last at most 100 steps. The agent uses the full action
+            space, 224 × 224 observations, DINOv2-base, a one-layer LSTM with
+            hidden size 512, and a target-object embedding of dimension 8.
+          </p>
+
+          <p>
+            The adaptive agent uses the same PPO hyperparameters as the PoC:
+            learning rate \(10^{-4}\), discount factor \(\gamma = 0.99\), PPO
+            clipping \(\epsilon = 0.1\), value coefficient 0.5, entropy
+            coefficient 0.05, and 8 PPO epochs per update.
+          </p>
+
+
+          <h3 class="title is-4">Policy optimization with PPO</h3>
+
+          <p>
+            We train the policy with Proximal Policy Optimization (PPO). At
+            timestep \(t\), the recurrent policy receives the current
+            observation \(o_t\) and the LSTM hidden state \(h_t\). It outputs a
+            distribution over actions:
+          </p>
+
+          <p>
+            \[
+            \pi_\theta(a_t \mid o_t, h_t)
+            \]
+          </p>
+
+          <p>
+            where \(\theta\) are the trainable policy parameters, \(a_t\) is the
+            selected action, \(o_t\) is the current observation, and \(h_t\) is
+            the recurrent hidden state.
+          </p>
+
+          <p>
+            PPO updates the policy using the clipped surrogate objective:
+          </p>
+
+          <p>
+            \[
+            L^{\mathrm{CLIP}}(\theta) =
+            \mathbb{E}_t
+            \left[
+            \min
+            \left(
+            r_t(\theta)\hat{A}_t,
+            \operatorname{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon)\hat{A}_t
+            \right)
+            \right]
+            \]
+          </p>
+
+          <p>
+            with:
+          </p>
+
+          <p>
+            \[
+            r_t(\theta) =
+            \frac{
+            \pi_\theta(a_t \mid o_t, h_t)
+            }{
+            \pi_{\theta_{\mathrm{old}}}(a_t \mid o_t, h_t)
+            }.
+            \]
+          </p>
+
+          <p>
+            The ratio \(r_t(\theta)\) compares the probability of the selected
+            action under the updated policy with the probability under the old
+            policy that generated the rollout. The term \(\hat{A}_t\) is the
+            advantage estimate: it measures whether action \(a_t\) was better
+            or worse than expected. The clipping parameter \(\epsilon\) limits
+            the size of policy updates. In our experiments, \(\epsilon = 0.1\).
+          </p>
+
+          <p>
+            We compute advantages with Generalized Advantage Estimation (GAE).
+            First, we compute the temporal-difference residual:
+          </p>
+
+          <p>
+            \[
+            \delta_t =
+            r_t + \gamma V(o_{t+1}, h_{t+1}) - V(o_t, h_t)
+            \]
+          </p>
+
+          <p>
+            Then the advantage estimate is:
+          </p>
+
+          <p>
+            \[
+            \hat{A}_t =
+            \sum_{l=0}^{T-t-1}
+            (\gamma \lambda)^l \delta_{t+l}
+            \]
+          </p>
+
+          <p>
+            where \(V(o_t, h_t)\) is the critic value estimate, \(\gamma\) is
+            the discount factor, and \(\lambda\) controls the bias-variance
+            trade-off of the advantage estimate. We use \(\gamma = 0.99\). The
+            PPO implementation uses \(\lambda = 0.95\).
+          </p>
+
+          <p>
+            The final optimization objective combines the policy loss, the
+            value loss, and an entropy bonus:
+          </p>
+
+          <p>
+            \[
+            L(\theta) =
+            L^{\mathrm{policy}}(\theta)
+            + c_v L^{\mathrm{value}}(\theta)
+            - c_e H(\pi_\theta)
+            \]
+          </p>
+
+          <p>
+            where \(L^{\mathrm{value}}\) trains the critic to predict future
+            return, \(H(\pi_\theta)\) is the entropy of the action distribution,
+            \(c_v\) is the value-loss coefficient, and \(c_e\) is the entropy
+            coefficient. The entropy term encourages exploration by preventing
+            the policy from becoming deterministic too early. In our setup,
+            \(c_v = 0.5\) and \(c_e = 0.05\).
+          </p>
+
+          <h3 class="title is-4">Training stabilization</h3>
+
+          <p>
+            Early training runs showed that the agents were not learning useful navigation
+            behavior. Rewards stayed low, success rates remained close to zero, and the
+            policy did not develop a meaningful sensing strategy. To make training more
+            stable, we progressively modified both the environment and the PPO training
+            pipeline.
+          </p>
+
+          <p>
+            First, we moved from single-environment rollouts to parallel environment
+            collection. Instead of updating PPO from one AI2-THOR episode at a time, we
+            collect trajectories from several environments before each update. This
+            reduces the variance of the training signal and gives PPO a more diverse
+            batch of transitions.
+          </p>
+
+          <p>
+            We also made the PPO update more robust. Generalized Advantage Estimation
+            is computed separately for each rollout, advantages are normalized jointly
+            across the full batch, value clipping is used to stabilize critic learning,
+            and recurrent hidden states are handled carefully so that the LSTM memory
+            remains consistent within each episode.
+          </p>
+
+          <p>
+            Another important change was curriculum learning. Instead of always starting
+            from the full task difficulty, we first expose the agent to easier episodes.
+            The agent starts closer to the target object, then the initial distance is
+            gradually increased. This helps the policy first learn simple navigation
+            behavior before being exposed to harder exploration problems.
+          </p>
+
+          <p>
+            We also use a curriculum for perception. At the beginning of training, the
+            agent starts with a relatively high visual resolution and a larger sensing
+            budget. As training progresses, the observations become more degraded and
+            the sensing budget becomes more constrained:
+          </p>
+
+          
+          <p>
+            We also replaced Euclidean distance with geodesic distance for reward shaping
+            and target-distance computation. This is important in indoor environments:
+            if a wall separates the agent from the object, Euclidean distance can be
+            misleading, while geodesic distance reflects the actual shortest navigable
+            path.
+          </p>
+
+          <p>
+            Finally, we improved the policy inputs. Auxiliary features such as position
+            and sensing budget are normalized to keep them on a stable scale. Orientation
+            is encoded with sine and cosine values instead of raw angles, avoiding
+            discontinuities around 360 degrees. We also added explicit target conditioning:
+            the target object is represented by a learned embedding rather than by a fixed
+            hash-based vector. This lets the policy know which object it is supposed to
+            find.
+          </p>
+          <h3 class="title is-4">Baselines</h3>
+
+          <p>
+            To evaluate whether adaptive resolution is useful, we compare the
+            adaptive PPO agent against several baselines. These baselines are
+            trained under the same general navigation setup but differ in how
+            they use visual resolution.
+          </p>
+
+          <ul>
+            <li>
+              <strong>High-resolution baseline:</strong> the agent always
+              receives full-resolution observations and does not use SENSE.
+            </li>
+            <li>
+              <strong>Adaptive PPO agent:</strong> the agent learns when to use
+              SENSE from interaction with the environment.
+            </li>
+          </ul>
+
+
+          <h3 class="title is-4">Evaluation metrics</h3>
+
+          <p>
+            We evaluate the agents along two axes: task performance and
+            perception efficiency. Task-performance metrics measure whether the
+            agent solves the navigation problem. We report cumulative reward,
+            success rate, episode length, distance-to-goal reduction, and
+            Success weighted by Path Length (SPL).
+          </p>
+
+          <p>
+            SPL is defined as:
+          </p>
+
+          <p>
+            \[
+            \mathrm{SPL} =
+            S \cdot
+            \frac{L^\star}{\max(L, L^\star)}
+            \]
+          </p>
+
+          <p>
+            where \(S\) is 1 if the episode is successful and 0 otherwise,
+            \(L^\star\) is the shortest path length to the target, and \(L\) is
+            the path length actually traveled by the agent. SPL rewards agents
+            that reach the target efficiently.
+          </p>
+
+          <p>
+            Perception-efficiency metrics measure how much high-resolution
+            information the agent uses. We report the number of SENSE actions,
+            the remaining sensing budget, the final resolution level, and the
+            total sensing cost. These metrics test whether the adaptive agent
+            can approach the performance of the high-resolution baseline while
+            using fewer high-resolution observations.
+          </p>
+
+          <p>
+            Finally, we analyze the learned sensing behavior. We study whether
+            the agent tends to sense early in the episode, after rotations, near
+            the target, before DONE, or when the remaining budget is high. This
+            helps determine whether the agent has learned a meaningful adaptive
+            perception strategy rather than using high-resolution observations
+            randomly.
+          </p>
+
         </div>
       </div>
-      <!--/ Methodology. -->
     </div>
-  </section>
-
+  </div>
+</section>
 <!------------------------------------------------------------------------->
-
 <!-----------------------------TODO: RESULTS-------------------------------->
   <section class="section">
     <div class="container is-max-desktop">
@@ -709,6 +1157,44 @@ Format the equations using LaTeX and add them to the website like this:
     </div>
   </section>
 
+<!-- REFERENCES -->
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3" id="references">References</h2>
+        <div class="content">
+          <ol>
+            <li id="ref-ai2thor">
+              Kolve, E., Mottaghi, R., Han, W., VanderBilt, E., Weihs, L.,
+              Herrasti, A., ... &amp; Farhadi, A. (2017).
+              <cite>AI2-THOR: An Interactive 3D Environment for Visual AI</cite>.
+              <em>arXiv preprint arXiv:1712.05474</em>.
+              <a href="https://arxiv.org/abs/1712.05474" target="_blank">[link]</a>
+            </li>
+
+            <li id="ref-atanov">
+              Atanov, A., Fu, J., Singh, R., Yu, I., Spielberg, A.,
+              &amp; Zamir, A. (2024).
+              <cite>How Far Can a 1-Pixel Camera Go? Solving Vision Tasks using
+              Photoreceptors and Computationally Designed Visual Morphology</cite>.
+              <em>ECCV</em>.
+              <a href="https://visual-morphology.epfl.ch/" target="_blank">[link]</a>
+            </li>
+
+            <li id="ref-drn">
+              Zhu, M., Han, K., Wu, E., Zhang, Q., Nie, Y., Lan, Z.,
+              &amp; Wang, Y. (2021).
+              <cite>Dynamic Resolution Network</cite>.
+              <em>NeurIPS</em>.
+              <a href="https://proceedings.neurips.cc/paper/2021/hash/e56954b4f6347e897f954495eab16a88-Abstract.html" target="_blank">[link]</a>
+            </li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 <!------------------------------------------------------------------------->
 
 <footer class="footer">
