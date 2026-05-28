@@ -24,16 +24,9 @@ class RewardConfig:
     success_reward: float = 5.0
     distance_scale: float = 0.01
     success_distance: float = 1.5
-
-    # --- NEW ---
-    # If True, give a signed shaping reward proportional to (prev_dist - curr_dist):
-    # positive when getting closer, negative when getting further.
-    # Defaults to True — this is the standard potential-based shaping which keeps
+    # standard potential-based shaping which keeps
     # the optimal policy invariant (Ng et al. 1999) when applied symmetrically.
     use_signed_progress: bool = True
-    # One-shot bonus the first time the target becomes visible in the episode.
-    # Helps unblock exploration in active visual search without distorting the
-    # reward geometry. Set to 0.0 to disable.
     first_visibility_bonus: float = 0.5
 
 
@@ -96,9 +89,6 @@ class ThorEnv:
       Moving resets it back to base_downgrade (worst resolution).
     """
 
-    # ------------------------------------------------------------------
-    # Aux-features layout constants (unchanged)
-    # ------------------------------------------------------------------
     _AUX_GPS_DIM        = 2
     _AUX_COMPASS_DIM    = 4
     _AUX_RESOLUTION_DIM = 1
@@ -214,11 +204,11 @@ class ThorEnv:
         self._remaining_sensing_budget = 0 if self.fixed_high_res else self.max_sensing_budget
         self._last_sense_was_valid = True
         self._closest_distance = np.inf
-        self._prev_distance = np.inf            # for signed shaping
-        self._target_ever_visible = False        # for first-visibility bonus
-        self._optimal_path_length = float("inf")  # for SPL
-        self._path_length = 0.0                  # accumulated path length, for SPL
-        self._prev_agent_xz = None               # for incremental path length
+        self._prev_distance = np.inf            
+        self._target_ever_visible = False      
+        self._optimal_path_length = float("inf")  
+        self._path_length = 0.0                  
+        self._prev_agent_xz = None               
         self._done = False
         self.current_event = None
         self.target_obj_type = None
@@ -226,17 +216,10 @@ class ThorEnv:
         self._scene_bounds = None
         self._agent_start = None
 
-    # ------------------------------------------------------------------
-    # Vocabulary
-    # ------------------------------------------------------------------
 
     def set_target_vocab(self, vocab: list[str]) -> None:
         self._target_vocab = list(vocab)
         self._target_to_idx = {name: i for i, name in enumerate(self._target_vocab)}
-
-    # ------------------------------------------------------------------
-    # Aux-features layout properties (unchanged)
-    # ------------------------------------------------------------------
 
     @property
     def gps_idx(self) -> int: return 0
@@ -425,15 +408,11 @@ class ThorEnv:
         )
         return self.current_event.metadata["lastActionSuccess"]
 
-    # ------------------------------------------------------------------
-    # Gymnasium interface
-    # ------------------------------------------------------------------
-
     def reset(self, scene: str, episode: int, target_obj_type: str = None,) -> torch.Tensor:
         if scene != getattr(self, "_cached_scene", None):
             self._geo_cache = {}
             self._cached_scene = scene
-        # NB: also clear cache if target object moves between episodes
+            
         if self.randomize_object_spawn:
             self._geo_cache = {}
 
@@ -512,7 +491,6 @@ class ThorEnv:
         else:
             self._define_target()
 
-        # ---- Force a controlled initial distance to the target ----
         if self.enforce_initial_distance:
             d_target = min(self.cfg.success_distance + 0.001 * episode, 4.0)
             d_min, d_max = d_target - 0.5, d_target + 0.5
@@ -530,7 +508,6 @@ class ThorEnv:
             euc = self._get_min_distance_to_object(self.target_obj_type)
             print(f"[TELEPORT] ok={ok}, agent=({pos['x']:.2f},{pos['z']:.2f}), geo={geo:.2f}, euc={euc:.2f}")
 
-        # Set agent start tracking AFTER any teleport so SPL/path_length are correct
         agent_position = self.current_event.metadata["agent"]["position"]
         self._agent_start = (agent_position["x"], agent_position["z"])
         self._prev_agent_xz = (agent_position["x"], agent_position["z"])
@@ -542,8 +519,6 @@ class ThorEnv:
         self._initial_distance = self._closest_distance
         self._min_distance_seen = self._closest_distance
 
-        # Compute shortest path for SPL. Falls back to euclidean initial distance
-        # if AI2-THOR's path planner fails (it does, occasionally, on some scenes).
         self._optimal_path_length = self._compute_optimal_path_length()
 
         return self._compute_obs()
@@ -633,7 +608,7 @@ class ThorEnv:
             "path_length": self._path_length,
             "spl": spl,
         }
-        # Diagnostic: log success conditions when min_distance is reached
+        # success conditions when min_distance is reached
         target_obj = next(
             (o for o in self.current_event.metadata["objects"]
             if o["objectType"] == self.target_obj_type),
@@ -652,10 +627,6 @@ class ThorEnv:
     def update_seed(self, seed: int):
         self.seed = seed
 
-    # ------------------------------------------------------------------
-    # Observation (unchanged)
-    # ------------------------------------------------------------------
-
     def _compute_obs(self) -> torch.Tensor:
         if self.current_event is None or getattr(self.current_event, "frame", None) is None:
             raise RuntimeError("No current frame available. Call reset() before requesting observations.")
@@ -673,9 +644,6 @@ class ThorEnv:
         level = int(max(0, min(self._current_downgrade, max_level)))
         return degrade_resolution(tensor, level)
 
-    # ------------------------------------------------------------------
-    # Target / distance helpers
-    # ------------------------------------------------------------------
 
     def _define_target(self):
         objects = self.current_event.metadata["objects"]
@@ -729,9 +697,6 @@ class ThorEnv:
             if o["objectType"] == self.target_obj_type
         )
 
-    # ------------------------------------------------------------------
-    # SPL helpers
-    # ------------------------------------------------------------------
 
     def _compute_optimal_path_length(self) -> float:
         """Shortest path length from agent start to the target object.
@@ -739,7 +704,7 @@ class ThorEnv:
         Uses AI2-THOR's built-in path planner. Falls back to the initial
         euclidean distance if the planner fails (which happens on some scenes
         and configurations). The fallback is an *under-estimate* of the true
-        shortest path, so it inflates SPL slightly — but it never crashes.
+        shortest path, so it inflates SPL slightly, but it never crashes.
         """
         try:
             from ai2thor.util.metrics import get_shortest_path_to_object_type
@@ -792,10 +757,6 @@ class ThorEnv:
             return True
         return False
 
-    # ------------------------------------------------------------------
-    # Reward / termination
-    # ------------------------------------------------------------------
-
     def _compute_reward(
         self,
         truncated: bool,
@@ -814,21 +775,19 @@ class ThorEnv:
         action = self._current_action
         cfg = self.cfg
 
-        # --- Distance shaping ---
         if cfg.use_signed_progress:
-            # Bidirectional, potential-based: reward = scale * (prev - curr).
+            # Bidirectional, reward = scale * (prev - curr).
             # Sums to scale * (initial_dist - final_dist) over the episode.
             if math.isfinite(self._prev_distance) and math.isfinite(current_distance):
                 progress = self._prev_distance - current_distance
                 reward += cfg.distance_scale * progress
         else:
-            # Original behaviour: one-sided shaping based on best distance so far.
+            # One-sided based on best distance so far.
             progress = self._closest_distance - current_distance
             if progress > 0:
                 reward += cfg.distance_scale * progress
                 self._closest_distance = current_distance
 
-        # --- First-visibility bonus (one-shot per episode) ---
         if (
             cfg.first_visibility_bonus > 0.0
             and target_visible_now
@@ -836,7 +795,6 @@ class ThorEnv:
         ):
             reward += cfg.first_visibility_bonus
 
-        # --- Action-specific costs ---
         if action == "SENSE":
             reward -= cfg.sense_penalty if self._last_sense_was_valid else cfg.oversensing_penalty
         elif action == "DONE":
@@ -871,10 +829,6 @@ class ThorEnv:
             self._get_distance_to_position(o["position"]) <= self.success_distance
             for o in targets
         )
-
-    # ------------------------------------------------------------------
-    # Aux features (unchanged)
-    # ------------------------------------------------------------------
 
     def get_aux_features(self, prev_action_idx: int | None = None) -> torch.Tensor:
         if self.current_event is None:

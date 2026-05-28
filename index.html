@@ -317,7 +317,8 @@ window.addEventListener("load", () => {
               Many real world systems operate under constraints on
               sensing and computation. A realistic agent should not rely
               on constant access to very dense information, but instead
-              learn when it should acquire additional information.
+              learn when it should acquire additional information:
+              [MAKE LIST]
               • More realistic perception modeling. The progressive
               observation model captures the fact that perception is
               limited in resolution and constrained by time/energy,
@@ -325,8 +326,7 @@ window.addEventListener("load", () => {
               world sensing.
               • Computational efficiency. By learning when high-
               resolution observations are truly necessary, the agent
-              can reduce the number of expensive sensing and pro-
-              cessing operations.
+              can reduce the number of expensive sensing and processing operations.
               • Robustness in complex environments. We believe that
               low resolution models, even if they demonstrated strong
               capacity, might struggle in more complex environments,
@@ -362,8 +362,10 @@ window.addEventListener("load", () => {
               resolution images are not always necessary in vision models and that it is possible
               to envision a model capable of selecting its current resolution to achieve the best trade-off
               in a recognition task.
-              To our knowledge, there is no directly comparable setup
-              that introduces dynamic resolution in a RL agent.
+            </p>
+            <p>
+              Navigation and object recognition tasks are common in the RL world, but to our knowledge, 
+              there is no directly comparable setup that introduces dynamic resolution in a RL agent.
             </p>
           </div>
         </div>
@@ -382,8 +384,66 @@ window.addEventListener("load", () => {
           <h2 class="title is-3" id="method">III. Methodology</h2>
           <div class="content has-text-justified">
             <p>
-              The methodology part of the report can be provided here
+              1. Environement and Agent:
+              We consider a standard RL setup for 3D navigation using
+              the AI2-THOR simulator [cite AI2-Thor]. Each episode begins with a
+              target object and an initial agent pose. The goal is to navigate
+              the environment, reach a target object, and center it in the
+              field of view. The environment consist of apartment scenes.
+              At each time step, the agent can perform standard navigation actions: move forward,
+              backward, left, or right by 25 cm; rotate left or right by 45
+              degrees; or end the episode, 
+              as well as a dedicated sensing action. This sensing action allows the agent
+              to increase the resolution of its current observation while
+              remaining at the same physical location. Once the agent
+              moves or rotates, the observation resets to low resolution.
             </p>
+            <p>
+              [Scheme of the presentation]
+            </p>
+            <p>
+              At the start of each episode,
+              the environment resets the agent position, the sensing budget,
+              and the target object. The agent then has at most 200 steps to
+              find the target.
+              The episode ends when the agent is either successful in the
+              task, has spent too much time in the simulation or decides to stop the simulation. 
+              An episode is considered successful when the
+              target object is visible (1.5 m visibility distance) and close
+              (< 0.5m from the agent)
+              We define a limited perceptual ”budget” and a perceptual
+              cost, with the goal of forcing the model to only increase resolution
+              when necessary, but also to have a fair limitation between
+              different agent behavior.
+            <p>
+              The agent observations consist of the RGB returned by the AI2-Thor environment
+              degraded to the current resolution level of the agent as main input,
+              with auxilary features consisting of gps, compass, previous action, current resolution level, 
+              the remaining sensing budget and the current target [Maybe a scheme of this]
+            </p>
+              2. Downgrading image resolution: 
+              We implemented a downgrading script that degrades original
+              224x224 resolution to the defined resolution level. Input
+              image size is set to maximum resolution. For a
+              given level, the image is divided into non-overlapping square
+              blocks of size 2level x 2level. Each block is replaced by the
+              average value of its pixels. The resulting low-resolution
+              representation is then upsampled back to 224x224 using
+              nearest-neighbor interpolation.
+            <p>
+              3. Model:
+              To sample the next action, we defined a LSTM model [cite LSTM] concatenated with 
+              a frozen DINOv2 [cite DINOv2] pretrained Vision Transformer encoder to encode the 224x224 RGB images into arrays of size 768 by default.
+              From the encoded image and the auxilary features, the LSTM predicts a distribution of probability over the action space, as well as 
+              a predicted reward value, which is used in the updating policy discussed below, and a hidden layer, giving
+              the agent short-term memory to integrate past observations
+              and avoid revisiting the same locations,
+              important in this case since the problem reside in a partially observable environment.
+            </p>
+            <p>
+              4. Reward and Policy:
+              [Copy what we said in progress for policy and check code for reward]
+
           </div>
         </div>
       </div>

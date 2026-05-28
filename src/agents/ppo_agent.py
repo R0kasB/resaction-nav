@@ -20,7 +20,7 @@ class PPOAgent:
           everything into one batch, then runs `epochs` PPO passes that iterate
           over rollouts sequentially (preserving per-rollout LSTM hidden flow)
           but accumulate gradients into a *single* optimizer.step() per epoch.
-          Steps the scheduler exactly once. This is the correct path when
+          Steps the scheduler exactly once. This is the correct way when
           collecting `num_parallel_envs` rollouts per iteration.
 
     Rollout dict schema (for update_from_rollouts):
@@ -75,9 +75,6 @@ class PPOAgent:
         self.buffer: list[dict] = []
         self.initial_hidden = None
 
-    # ------------------------------------------------------------------
-    # Action sampling
-    # ------------------------------------------------------------------
 
     def act(self, image: torch.Tensor, aux_features: torch.Tensor, hidden=None):
         with torch.no_grad():
@@ -86,9 +83,6 @@ class PPOAgent:
         action = dist.sample()
         return action.item(), dist.log_prob(action).squeeze(-1), value.squeeze(), hidden
 
-    # ------------------------------------------------------------------
-    # Single-rollout buffer interface (legacy)
-    # ------------------------------------------------------------------
 
     def store_initial_hidden(self, hidden):
         if self.buffer:
@@ -172,9 +166,6 @@ class PPOAgent:
             "final_hidden":      final_hidden,
         }
 
-    # ------------------------------------------------------------------
-    # Multi-rollout update (preferred path)
-    # ------------------------------------------------------------------
 
     def update_from_rollouts(self, rollouts: list[dict]) -> dict:
         """Run PPO on a batch of rollouts.
@@ -194,7 +185,6 @@ class PPOAgent:
 
         device = rollouts[0]["values"].device
 
-        # --- 1. GAE per rollout, then collect lengths/offsets and concatenate. ---
         all_returns = []
         all_advantages = []
         rollout_lengths = []
@@ -230,7 +220,6 @@ class PPOAgent:
                 1.0 - (flat_returns - flat_values).var(unbiased=False) / (var_returns + 1e-8)
             ).item()
 
-        # --- 2. Joint advantage normalisation across the whole batch. ---
         flat_adv = torch.cat(all_advantages, dim=0)
         if flat_adv.numel() > 1:
             adv_mean = flat_adv.mean()
@@ -244,7 +233,6 @@ class PPOAgent:
         if total_T == 0:
             return {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
 
-        # --- 3. PPO epochs. Each epoch: iterate rollouts, chunked TBPTT, single optim step. ---
         total_policy_loss = 0.0
         total_value_loss = 0.0
         total_entropy = 0.0
@@ -353,10 +341,6 @@ class PPOAgent:
             "returns_var": var_returns.item(),
             "returns_mean": flat_returns.mean().item(),
         }
-
-    # ------------------------------------------------------------------
-    # GAE
-    # ------------------------------------------------------------------
 
     def _compute_gae(
         self, rewards, dones, values: torch.Tensor, last_value: torch.Tensor
