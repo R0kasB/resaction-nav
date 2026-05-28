@@ -314,24 +314,48 @@ window.addEventListener("load", () => {
               approach to vision since it implicitly reflects attention.
             </p>
             <p>
-              Many real world systems operate under constraints on
-              sensing and computation. A realistic agent should not rely
-              on constant access to very dense information, but instead
-              learn when it should acquire additional information:
-              [MAKE LIST]
-              • More realistic perception modeling. The progressive
-              observation model captures the fact that perception is
-              limited in resolution and constrained by time/energy,
-              making the agent's vision closer to biological and real-
-              world sensing.
-              • Computational efficiency. By learning when high-
-              resolution observations are truly necessary, the agent
-              can reduce the number of expensive sensing and processing operations.
-              • Robustness in complex environments. We believe that
-              low resolution models, even if they demonstrated strong
-              capacity, might struggle in more complex environments,
-              and dynamic resolution could provide an attractive trade-off
+              Many real-world systems operate under constraints on sensing and computation.
+              A realistic agent should not rely on constant access to dense visual
+              information, but instead learn when additional information is worth acquiring.
+              This motivates dynamic-resolution perception for several reasons:
             </p>
+
+            <ul>
+              <li>
+                <strong>More realistic perception modeling.</strong>
+                The progressive observation model captures the fact that perception is
+                limited in resolution and constrained by time or energy, making the
+                agent's vision closer to biological and real-world sensing.
+              </li>
+
+              <li>
+                <strong>Computational efficiency.</strong>
+                By learning when high-resolution observations are truly necessary, the
+                agent can reduce the number of expensive sensing and processing operations.
+              </li>
+
+              <li>
+                <strong>Adaptive attention.</strong>
+                The sensing action gives the agent a way to actively decide when to focus
+                on visual details, instead of processing every observation with the same
+                level of precision.
+              </li>
+
+              <li>
+                <strong>Robustness in complex environments.</strong>
+                Low-resolution models may work well in simple settings, but they can
+                struggle when objects are small, visually similar, partially occluded, or
+                placed in cluttered scenes. Dynamic resolution offers a trade-off between
+                low-cost navigation and detailed object recognition.
+              </li>
+
+              <li>
+                <strong>Better use of limited resources.</strong>
+                In real robotic systems, sensing, memory, bandwidth, and computation are
+                limited. An agent that learns when to acquire more information can operate
+                more efficiently under such constraints.
+              </li>
+            </ul>
           </div>
         </div>
       </div>
