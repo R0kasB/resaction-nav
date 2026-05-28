@@ -386,10 +386,37 @@ window.addEventListener("load", () => {
             <p>
               1. Environement and Agent:
               We consider a standard RL setup for 3D navigation using
-              the AI2-THOR simulator [cite AI2-Thor]. Each episode begins with a
+              the AI2-THOR simulator [cite AI2-Thor]. This simulator provides us with an
+              already built-in simulation environement, and default apartment scenes.
+            </p>  
+            <p>
+              <h3 class="title is-6">Example of a default scene</h3>
+
+                <div class="columns is-vcentered interpolation-panel">
+                  
+                  <div class="column interpolation-video-column">
+                    
+                    <div id="interpolation-image-wrapper">
+                      Loading...
+                    </div>
+
+                    <input class="slider is-fullwidth is-large is-info"
+                          id="interpolation-slider"
+                          step="1"
+                          min="0"
+                          max="100"
+                          value="0"
+                          type="range">
+                          
+                  </div>
+
+                </div>
+            </p>
+            <p>
+              Each episode begins with a
               target object and an initial agent pose. The goal is to navigate
-              the environment, reach a target object, and center it in the
-              field of view. The environment consist of apartment scenes.
+              the environment, reach a target object, and have it in the
+              field of view.
               At each time step, the agent can perform standard navigation actions: move forward,
               backward, left, or right by 25 cm; rotate left or right by 45
               degrees; or end the episode, 
