@@ -1,5 +1,7 @@
 # Codebase Architecture
 
+OBSOLETE
+
 ## What this project does
 
 A reinforcement learning agent that navigates AI2-THOR indoor environments to find a target object.
