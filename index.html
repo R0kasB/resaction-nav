@@ -431,11 +431,36 @@ window.addEventListener("load", () => {
 
           <p>
             We formulate the problem as an embodied object-navigation task in
-            AI2-THOR. Each episode takes place in an apartment scene. At the
+            AI2-THOR simulator <a href="#ref-ai2thor">[4]</a>. This simulator provides us with an
+            already built-in simulation environement, and default apartment scenes. 
+            Each episode takes place in one of the default apartment scene. At the
             beginning of the episode, the agent is placed at an initial position
             and receives a target object category. The goal is to navigate
             through the scene and reach the target object within a limited
             number of steps.
+          </p>
+          
+          <p>
+            <h3 class="title is-6">Example of a default scene</h3>
+              <div class="columns is-vcentered interpolation-panel">
+                
+                <div class="column interpolation-video-column">
+                  
+                  <div id="interpolation-image-wrapper">
+                    Loading...
+                  </div>
+
+                  <input class="slider is-fullwidth is-large is-info"
+                        id="interpolation-slider"
+                        step="1"
+                        min="0"
+                        max="100"
+                        value="0"
+                        type="range">
+                          
+                </div>
+
+              </div>
           </p>
 
           <p>
@@ -446,7 +471,24 @@ window.addEventListener("load", () => {
             SENSE action. Movement actions displace the agent by 25 cm, while
             rotations turn the agent by 45 degrees. The DONE action terminates
             the episode. The SENSE action improves the resolution of the current
-            visual observation without moving the agent.
+            visual observation without moving the agent. Once the agent
+            moves or rotates, the observation resets to low resolution.
+          </p>
+          
+          <p>
+            <section class="hero teaser">
+              <div class="container is-max-desktop">
+                <div class="hero-body">
+
+                  <img
+                    src="./static/images/action_scheme.png"
+                    alt="action scheme"
+                    style="width:100%; height:auto; border-radius:10px;"
+                  >
+
+                </div>
+              </div>
+            </section>
           </p>
 
           <p>
@@ -555,6 +597,21 @@ window.addEventListener("load", () => {
             two outputs are trained jointly using Proximal Policy Optimization.
           </p>
 
+          <p>
+            <section class="hero teaser">
+              <div class="container is-max-desktop">
+                <div class="hero-body">
+
+                  <img
+                    src="./static/images/Resume_env_agent_relation.png"
+                    alt="action scheme"
+                    style="width:100%; height:auto; border-radius:10px;"
+                  >
+
+                </div>
+              </div>
+            </section>
+          </p>
 
           <h3 class="title is-4">Reward function</h3>
 
@@ -1212,6 +1269,16 @@ Format the equations using LaTeX and add them to the website like this:
               <cite>Dynamic Resolution Network</cite>.
               <em>NeurIPS</em>.
               <a href="https://proceedings.neurips.cc/paper/2021/hash/e56954b4f6347e897f954495eab16a88-Abstract.html" target="_blank">[link]</a>
+            </li>
+
+            <li id="ref-ai2thor">
+              Kolve, E., Mottaghi, R., Han, W., VanderBilt, E., 
+              Weihs, L., Herrasti, A., Deitke, M., Ehsani, K., 
+              Gordon, D., Zhu, Y., Kembhavi, A., Gupta, A., Farhadi, A. 
+              (2017).
+              <cite>AI2-THOR: An Interactive 3D Environment for Visual AI</cite>.
+              <em>arXiv</em>.
+              <a href="https://arxiv.org/abs/1712.05474" target="_blank">[link]</a>
             </li>
           </ol>
         </div>
