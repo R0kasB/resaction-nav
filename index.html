@@ -185,7 +185,7 @@ window.addEventListener("load", () => {
             perceptual detail: low resolution limits object recognition, while
             high resolution is expensive to process at every step. One solution to this problem
             is providing an agent with the capacity of modulating the resolution of its vision,
-            giving it the possibility to navigate at low cost and identify object relactively accuratly.
+            giving it the possibility to navigate at low cost and identify objects relatively accurately.
           </p>
           <p>
             To prove the efficacy of this solution, we consider a RL 3D navigation task in AI2-THOR where an agent must reach and center a target object in apartment scenes. 
@@ -1057,7 +1057,7 @@ window.addEventListener("load", () => {
           <div class="columns is-centered is-vcentered">
 
             <div class="column is-half has-text-centered">
-              <h4 class="title is-5">POC at step 0</h4>
+              <h4 class="title is-6">POC at step 0</h4>
               <img
                 src="./static/gifs/POC0.gif"
                 alt="POC at step 0"
@@ -1066,7 +1066,7 @@ window.addEventListener("load", () => {
             </div>
 
             <div class="column is-half has-text-centered">
-              <h4 class="title is-5">POC at step 3500</h4>
+              <h4 class="title is-6">POC at step 3500</h4>
               <img
                 src="./static/gifs/POC3500.gif"
                 alt="POC at step 3500"
@@ -1131,16 +1131,18 @@ window.addEventListener("load", () => {
           <h3 class="title is-4">Adaptive model</h3>
 
           <p>
-            We encountered two main issues with the adaptive model, and none of
-            our attempts converged to a satisfying solution. Interestingly, both
-            issues arise from the same reward formulation, despite producing almost
-            opposite behaviors.
+            We encountered two main issues with the adaptive model, and none of our
+            attempts converged to a satisfactory solution. Interestingly, both issues
+            stem from the same reward formulation, despite leading to almost opposite
+            behaviors.
           </p>
 
           <div class="columns is-centered is-vcentered">
 
             <div class="column is-half has-text-centered">
-              <h4 class="title is-5">Adaptive model at step 1100</h4>
+              <h4 class="title is-6">
+                Adaptive model not sensing at step 1100
+              </h4>
               <img
                 src="./static/gifs/adaptive1100.gif"
                 alt="adaptive at step 0"
@@ -1149,7 +1151,9 @@ window.addEventListener("load", () => {
             </div>
 
             <div class="column is-half has-text-centered">
-              <h4 class="title is-5">Adaptive model at step 2700</h4>
+              <h4 class="title is-6">
+                Adaptive model not sensing at step 2700
+              </h4>
               <img
                 src="./static/gifs/adaptive2700.gif"
                 alt="POC at step 3500"
@@ -1162,27 +1166,33 @@ window.addEventListener("load", () => {
           <div class="columns is-centered is-vcentered">
 
             <div class="column is-one-third has-text-centered">
-              <h4 class="title is-6">Adaptive not sensing SPL</h4>
+              <h4 class="title is-6">
+                Adaptive not sensing SPL
+              </h4>
               <img
-                src="./static/images/spl_POC.png"
+                src="./static/images/spl_adaptive_nosensing.png"
                 alt="Training reward graph"
                 style="width: 100%; max-width: 420px; border-radius: 10px;"
               >
             </div>
 
             <div class="column is-one-third has-text-centered">
-              <h4 class="title is-6">Adaptive not sensing success rate</h4>
+              <h4 class="title is-6">
+                Adaptive not sensing success rate
+              </h4>
               <img
-                src="./static/images/success_ratePOC.png"
+                src="./static/images/success_rate_adaptive_nosensing.png"
                 alt="Success rate graph"
                 style="width: 100%; max-width: 420px; border-radius: 10px;"
               >
             </div>
 
             <div class="column is-one-third has-text-centered">
-              <h4 class="title is-6">Adaptive not sensing policy loss</h4>
+              <h4 class="title is-6">
+                Adaptive not sensing policy loss
+              </h4>
               <img
-                src="./static/images/policy_loss_POC.png"
+                src="./static/images/policy_loss_adaptive_nosensing.png"
                 alt="Success rate graph"
                 style="width: 100%; max-width: 420px; border-radius: 10px;"
               >
@@ -1191,39 +1201,123 @@ window.addEventListener("load", () => {
           </div>
 
           <p>
-            The first issue (showcased above) is that the model tends to ignore the adaptive
-            resolution mechanism and navigates using the minimum resolution
-            throughout the episode. One reason for this is that the environment is
-            relatively small, allowing the agent to succeed through partially random
-            movement or by associating actions with background colors learned during
-            the curriculum. Using multiple rooms could reduce this effect, but in
-            practice the agent then struggles to converge. In addition, when the
-            image resolution becomes too low, sensing becomes significantly more
-            expensive to recover meaningful information not already present in the
-            low-resolution observation. Reducing the sensing cost can partially
-            address this issue, but it directly reinforces the second problem
-            described below.
+            The first issue (shown above) is that the model tends to ignore the
+            adaptive resolution mechanism and instead navigates using the lowest
+            resolution throughout the episode. One contributing factor is that the
+            environment is relatively small, allowing the agent to succeed through
+            partially random exploration or by exploiting correlations between actions
+            and background colors learned during the curriculum. The agent
+            achieves a good success rate and SPL compared to the high-resolution
+            baseline, but this behavior is essentially a form of cheating. We also
+            observe that the policy loss appears to have converged, suggesting that the
+            model is stuck in a local minimum.
           </p>
 
           <p>
-            The second issue is the opposite behavior. Instead of ignoring sensing,
-            the model relies on it excessively and only rotates while barely moving and remaining
-            near the same location. This occurs because sensing and rotating is less costly overall than
-            moving. When the agent fails to solve the task during curriculum
-            training, repeatedly sensing and rotating until the episode ends becomes less
-            punishing than moving unsuccessfully. One possible solution would be to
-            increase the task difficulty only once the agent reaches a sufficient
-            success rate. However, this would likely strengthen the first issue by
-            giving the agent more time to memorize the environment and exploit
-            shortcuts instead of learning robust navigation strategies. We could also
-            increase exploration reward, but this would likely loop back to the first problem.
+            Using multiple rooms could mitigate this effect, but in practice it makes
+            convergence more difficult. In addition, when the observation resolution
+            becomes too low, sensing becomes too expensive relative to the information
+            gain, since the agent needs to sense more and more throughout the curriculum to gather the same image quality.
+            Reducing the sensing cost can partially alleviate this issue, but it would
+            directly enhances the second problem described below.
+          </p>
+
+          <div class="columns is-centered is-vcentered">
+
+            <div class="column is-half has-text-centered">
+              <h4 class="title is-6">
+                Adaptive model not moving at step 1100
+              </h4>
+              <img
+                src="./static/gifs/adaptive_stuck750.gif"
+                alt="adaptive at step 0"
+                style="width: 95%; max-width: 700px; border-radius: 10px;"
+              >
+            </div>
+
+            <div class="column is-half has-text-centered">
+              <h4 class="title is-6">
+                Adaptive model not moving at step 2700
+              </h4>
+              <img
+                src="./static/gifs/adaptive_stuck3250.gif"
+                alt="POC at step 3500"
+                style="width: 95%; max-width: 700px; border-radius: 10px;"
+              >
+            </div>
+
+          </div>
+
+          <div class="columns is-centered is-vcentered">
+
+            <div class="column is-one-third has-text-centered">
+              <h4 class="title is-6">
+                Adaptive not moving SPL
+              </h4>
+              <img
+                src="./static/images/spl_adaptive_stuck.png"
+                alt="Training reward graph"
+                style="width: 100%; max-width: 420px; border-radius: 10px;"
+              >
+            </div>
+
+            <div class="column is-one-third has-text-centered">
+              <h4 class="title is-6">
+                Adaptive not moving success rate
+              </h4>
+              <img
+                src="./static/images/success_rate_adaptive_stuck.png"
+                alt="Success rate graph"
+                style="width: 100%; max-width: 420px; border-radius: 10px;"
+              >
+            </div>
+
+            <div class="column is-one-third has-text-centered">
+              <h4 class="title is-6">
+                Adaptive not moving policy loss
+              </h4>
+              <img
+                src="./static/images/policy_loss_adaptive_stuck.png"
+                alt="Success rate graph"
+                style="width: 100%; max-width: 420px; border-radius: 10px;"
+              >
+            </div>
+
+          </div>
+
+          <p>
+            The second issue (shown above) is the opposite behavior. Instead of
+            ignoring sensing, the model over-relies on it and primarily rotates in
+            place, with minimal movement away from the initial location. This emerges
+            because sensing and rotation are cheaper than movement, while movement
+            can be penalized by collisions or increasing distance
+            from the target. This effect is further reinforced by the reward for
+            observing the object for the first time in a visible range.
           </p>
 
           <p>
-            There is likely a balance between the sensing cost, exploration reward and the pacing of
-            curriculum difficulty increases that could stabilize training. However,
-            given the time constraints of this project, we were not able to reach
-            a reliable configuration.
+            As a result, when the agent fails to solve the task during curriculum
+            training, repeatedly sensing and rotating until the end of the episode becomes
+            less costly than moving. This leads to a policy with low
+            success rate and low SPL. We also observe a low policy loss, which means that
+            the model has likely converged to a poor local optimum and cannot
+            improve with further training.
+          </p>
+
+          <p>
+            One possible remedy would be to increase task difficulty only after the
+            agent reaches a sufficient success threshold. However, this would likely
+            worsen the first issue by giving the agent more time to memorize
+            environment-specific shortcuts instead of learning robust navigation
+            strategies. Increasing exploration incentives could also help, but risks
+            reintroducing the original imbalance.
+          </p>
+
+          <p>
+            There is likely a balance between the sensing cost, exploration reward and 
+            the pacing of curriculum difficulty increases that could stabilize training. 
+            However, given the time constraints of this project, we were not able to reach 
+            a good configuration.
           </p>
 
         </div>
@@ -1245,8 +1339,40 @@ window.addEventListener("load", () => {
           <h2 class="title is-3" id="conclusion">V. Conclusion and Limitations</h2>
           <div class="content has-text-justified">
             <p>
-              Bigger rooms needed, adpat the curriculum learning, exploring reward more, more memory
+              As we have demonstrated, the environment and baseline agent appear sufficient
+              for the task of navigation and object recognition. However, introducing the
+              adaptive resolution proved more challenging than expected. We were unable to
+              identify a reward configuration that consistently led the adaptive model to
+              the desired behavior, as multiple components need tuning, including the
+              reward values themselves as well as the curriculum progression.
+              Reward shaping was expected to be the most time consuming and
+              complex part of the project, so we were not surprised by the outcome.
             </p>
+
+            <p>
+              We were mainly limited by the simulator and the available training
+              time. The scenes are relatively small, which might be the reason the agent
+              to ignore the sensing action. With additional training time,
+              better results might have been achievable, or more configurations could have
+              been explored. Another limitation is that our curriculum formulation may not
+              be optimal, there is likely a more effective way to structure incremental
+              learning than gradually increasing spawn distance and resolution level.
+            </p>
+
+            <p>
+              We are nevertheless satisfied with the results. Even if we were unable to
+              demonstrate good performance for the adaptive setting, the overall idea
+              remains promising in our eyes, and the full setup appears to work well for
+              the standard agent, even if its full potential was not explored.
+            </p>
+
+            <p>
+              The main directions for future work are clear: improving reward shaping,
+              redesigning the curriculum strategy, using a simulator with larger and more
+              diverse environments, and potentially scaling up the LSTM architecture,
+              since larger spaces may require better memory capacities.
+            </p>
+
           </div>
         </div>
       </div>
