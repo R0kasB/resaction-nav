@@ -5,10 +5,10 @@
 <!--TODO: THE METADATA OF THE WEBSITE CAN BE EDITED USING THE META TAGS BELOW -->
   <meta charset="utf-8">
   <meta name="description"
-        content="Template project website. Replace this line with a one-sentence summary of your project.">
-  <meta name="keywords" content="project website, template, research">
+        content="Demonstration at bridging the resolution trade-off in dual navigation and recognition task, via an adaptive resolution agent">
+  <meta name="keywords" content="project website, Reinforcement Learning, Adaptive Resolution, 3D Navigation, Target Recognition, PPO">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Project Title</title>
+  <title>Dynamic Resolution for Task-Adaptive Efficient 3D Navigation and Target Detection</title>
 <!------------------------------------------------------------------------->
 
 
@@ -581,7 +581,7 @@ window.addEventListener("load", () => {
           </p>
 
           <p>
-            The concatenated representation is then passed to an LSTM. The LSTM
+            The concatenated representation is then passed to a one hidden layer LSTM. The LSTM
             gives the agent memory across timesteps, which is important because
             the task is partially observable. A single low-resolution frame may
             not contain enough information to identify the target object or to
@@ -604,7 +604,7 @@ window.addEventListener("load", () => {
 
                   <img
                     src="./static/images/Resume_env_agent_relation.png"
-                    alt="action scheme"
+                    alt="env_agent"
                     style="width:100%; height:auto; border-radius:10px;"
                   >
 
@@ -746,7 +746,7 @@ window.addEventListener("load", () => {
           <p>
             The adaptive setup uses six AI2-THOR scenes: FloorPlan1 to
             FloorPlan6. The target object is sampled randomly from Mug and Bowl.
-            Episodes last at most 100 steps. The agent uses the full action
+            Episodes last at most 200 steps. The agent uses the full action
             space, 224 × 224 observations, DINOv2-base, a one-layer LSTM with
             hidden size 512, and a target-object embedding of dimension 8.
           </p>
@@ -1010,22 +1010,127 @@ window.addEventListener("load", () => {
 </section>
 <!------------------------------------------------------------------------->
 <!-----------------------------TODO: RESULTS-------------------------------->
-  <section class="section">
-    <div class="container is-max-desktop">
-      <!-- Results. -->
-      <div class="columns is-centered">
-        <div class="column is-full-width">
-          <h2 class="title is-3" id="results">IV. Results</h2>
-          <div class="content has-text-justified">
-            <p>
-              The results part of the report can be provided here
-            </p>
+<section class="section">
+  <div class="container is-max-desktop">
+
+    <!-- Results -->
+    <div class="columns is-centered">
+      <div class="column is-full-width">
+
+        <h2 class="title is-3" id="results">IV. Results</h2>
+
+        <div class="content has-text-justified">
+
+          <!-- High-resolution baseline -->
+          <h3 class="title is-4">High-resolution baseline</h3>
+
+          <div class="columns is-centered is-vcentered">
+
+            <div class="column is-half has-text-centered">
+              <h4 class="title is-5">POC at step 0</h4>
+              <img
+                src="./static/gifs/POC0.gif"
+                alt="POC at step 0"
+                style="width: 95%; max-width: 700px; border-radius: 10px;"
+              >
+            </div>
+
+            <div class="column is-half has-text-centered">
+              <h4 class="title is-5">POC at step 3500</h4>
+              <img
+                src="./static/gifs/POC3500.gif"
+                alt="POC at step 3500"
+                style="width: 95%; max-width: 700px; border-radius: 10px;"
+              >
+            </div>
+
           </div>
+
+          <p>
+            As visible in the videos above, the high-resolution agent is able to
+            reach its target object (in this case a bowl) relatively reliably after
+            some training. This suggests that the overall reward setup is effective.
+            The training curves below also show that the model reaches reasonable
+            performance after only a few hundred iterations.
+          </p>
+
+          <!-- Graphs -->
+          <div class="columns is-centered is-vcentered">
+
+            <div class="column is-half has-text-centered">
+              <h4 class="title is-5">Training reward</h4>
+              <img
+                src="./static/images/reward_graph.png"
+                alt="Training reward graph"
+                style="width: 95%; max-width: 700px; border-radius: 10px;"
+              >
+            </div>
+
+            <div class="column is-half has-text-centered">
+              <h4 class="title is-5">Success rate</h4>
+              <img
+                src="./static/images/success_graph.png"
+                alt="Success rate graph"
+                style="width: 95%; max-width: 700px; border-radius: 10px;"
+              >
+            </div>
+
+          </div>
+
+          <!-- Adaptive model -->
+          <h3 class="title is-4">Adaptive model</h3>
+
+          <p>
+            We encountered two main issues with the adaptive model, and none of
+            our attempts converged to a satisfying solution. Interestingly, both
+            issues arise from the same reward formulation, despite producing almost
+            opposite behaviors.
+          </p>
+
+          <p>
+            The first issue is that the model tends to ignore the adaptive
+            resolution mechanism and navigates using the minimum resolution
+            throughout the episode. One reason for this is that the environment is
+            relatively small, allowing the agent to succeed through partially random
+            movement or by associating actions with background colors learned during
+            the curriculum. Using multiple rooms could reduce this effect, but in
+            practice the agent then struggles to converge. In addition, when the
+            image resolution becomes too low, sensing must become significantly more
+            expensive to recover meaningful information not already present in the
+            low-resolution observation. Reducing the sensing cost can partially
+            address this issue, but it directly reinforces the second problem
+            described below.
+          </p>
+
+          <p>
+            The second issue is the opposite behavior. Instead of ignoring sensing,
+            the model relies on it excessively while barely moving and remaining
+            near the same location. This occurs because sensing is less costly than
+            movement. When the agent fails to solve the task during curriculum
+            training, repeatedly sensing until the episode ends becomes less
+            punishing than moving unsuccessfully. One possible solution would be to
+            increase the task difficulty only once the agent reaches a sufficient
+            success rate. However, this would likely strengthen the first issue by
+            giving the agent more time to memorize the environment and exploit
+            shortcuts instead of learning robust navigation strategies. We could also
+            increase exploration reward, but this would likely loop back to the first problem.
+          </p>
+
+          <p>
+            There is likely a balance between the sensing cost, exploration reward and the pacing of
+            curriculum difficulty increases that could stabilize training. However,
+            given the time constraints of this project, we were not able to reach
+            a reliable configuration.
+          </p>
+
         </div>
       </div>
-      <!--/ Results. -->
     </div>
-  </section>
+
+    <!-- /Results -->
+
+  </div>
+</section>
 <!------------------------------------------------------------------------->
 
 <!-----------------------------TODO: DISCUSSION-------------------------------->
@@ -1037,7 +1142,7 @@ window.addEventListener("load", () => {
           <h2 class="title is-3" id="conclusion">V. Conclusion and Limitations</h2>
           <div class="content has-text-justified">
             <p>
-              The conclusion and limitations part of the report can be provided here
+              Bigger rooms needed, adpat the curriculum learning, exploring reward more, more memory
             </p>
           </div>
         </div>
