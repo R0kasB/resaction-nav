@@ -250,15 +250,6 @@ window.addEventListener("load", () => {
             </div>
 <!--- TODO: Remove this part, this is here to show you possible visualizations used in the website ---------------->
 
-            <div class="tile is-parent">
-              <a href="#visual_items" class="tile is-child box">
-                <p class="subtitle">
-                  <font size="-1">Visual Items</font>
-                </p>
-              </a>
-            </div>
-          </div>
-
         </div>
       </div>
 <!------------------------------------------------------------------------->
@@ -758,6 +749,65 @@ window.addEventListener("load", () => {
             coefficient 0.05, and 8 PPO epochs per update.
           </p>
 
+          <h3 class="title is-5">Setup Comparison</h3>
+          <div class="content">
+
+            <div class="table-container">
+              <table class="table is-fullwidth is-striped is-hoverable is-bordered">
+
+                <thead>
+                  <tr>
+                    <th style="background-color:#e8eefc;">Component</th>
+                    <th style="background-color:#e8eefc;">High-resolution PoC</th>
+                    <th style="background-color:#e8eefc;">Adaptive Agent</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+
+                  <tr>
+                    <td style="background-color:#eef2ff;">Goal</td>
+                    <td style="background-color:#f3f6ff;">Validate full learning pipeline in a simplified setting</td>
+                    <td style="background-color:#f3f6ff;">Learn navigation + adaptive perception jointly</td>
+                  </tr>
+
+                  <tr>
+                    <td style="background-color:#eef2ff;">Observations</td>
+                    <td style="background-color:#f3f6ff;">224×224 full-resolution RGB</td>
+                    <td style="background-color:#f3f6ff;">224×224 degraded RGB</td>
+                  </tr>
+
+                  <tr>
+                    <td style="background-color:#eef2ff;">SENSE action</td>
+                    <td style="background-color:#f3f6ff;">Disabled</td>
+                    <td style="background-color:#f3f6ff;">Enabled</td>
+                  </tr>
+
+                  <tr>
+                    <td style="background-color:#eef2ff;">Action space</td>
+                    <td style="background-color:#f3f6ff;">MoveAhead, RotateLeft, RotateRight, DONE</td>
+                    <td style="background-color:#f3f6ff;">Full action space + SENSE</td>
+                  </tr>
+
+                  <tr>
+                    <td style="background-color:#eef2ff;">Environments</td>
+                    <td style="background-color:#f3f6ff;">Single simplified setup</td>
+                    <td style="background-color:#f3f6ff;">FloorPlan1–FloorPlan6</td>
+                  </tr>
+
+                  <tr>
+                    <td style="background-color:#eef2ff;">Episode length</td>
+                    <td style="background-color:#f3f6ff;">50 steps</td>
+                    <td style="background-color:#f3f6ff;">200 steps</td>
+                  </tr>
+
+                </tbody>
+
+              </table>
+            </div>
+
+          </div>
+
 
           <h3 class="title is-4">Policy optimization with PPO</h3>
 
@@ -876,6 +926,53 @@ window.addEventListener("load", () => {
             \(c_v = 0.5\) and \(c_e = 0.05\).
           </p>
 
+                    <h3 class="title is-4">Evaluation metrics</h3>
+
+          <p>
+            We evaluate the agents along two axes: task performance and
+            perception efficiency. Task-performance metrics measure whether the
+            agent solves the navigation problem. We mainly report reward
+            success rate, episode length, policy loss and
+            Success weighted by Path Length (SPL).
+          </p>
+
+          <p>
+            SPL is defined as:
+          </p>
+
+          <p>
+            \[
+            \mathrm{SPL} =
+            S \cdot
+            \frac{L^\star}{\max(L, L^\star)}
+            \]
+          </p>
+
+          <p>
+            where \(S\) is 1 if the episode is successful and 0 otherwise,
+            \(L^\star\) is the shortest path length to the target, and \(L\) is
+            the path length actually traveled by the agent. SPL rewards agents
+            that reach the target efficiently.
+          </p>
+
+          <p>
+            Perception-efficiency metrics measure how much high-resolution
+            information the agent uses. We report the number of SENSE actions,
+            the remaining sensing budget, the final resolution level, and the
+            total sensing cost. These metrics test whether the adaptive agent
+            can approach the performance of the high-resolution baseline while
+            using fewer high-resolution observations.
+          </p>
+
+          <p>
+            Finally, we analyzed the learned sensing behavior. The goal is to study whether
+            the agent tends to sense early in the episode, after rotations, near
+            the target, before DONE, or when the remaining budget is high. This
+            helps determine whether the agent has learned a meaningful adaptive
+            perception strategy rather than using high-resolution observations
+            randomly.
+          </p>
+
           <h3 class="title is-4">Training stabilization</h3>
 
           <p>
@@ -935,73 +1032,6 @@ window.addEventListener("load", () => {
             hash-based vector. This lets the policy know which object it is supposed to
             find.
           </p>
-          <h3 class="title is-4">Baselines</h3>
-
-          <p>
-            To evaluate whether adaptive resolution is useful, we compare the
-            adaptive PPO agent against several baselines. These baselines are
-            trained under the same general navigation setup but differ in how
-            they use visual resolution.
-          </p>
-
-          <ul>
-            <li>
-              <strong>High-resolution baseline:</strong> the agent always
-              receives full-resolution observations and does not use SENSE.
-            </li>
-            <li>
-              <strong>Adaptive PPO agent:</strong> the agent learns when to use
-              SENSE from interaction with the environment.
-            </li>
-          </ul>
-
-
-          <h3 class="title is-4">Evaluation metrics</h3>
-
-          <p>
-            We evaluate the agents along two axes: task performance and
-            perception efficiency. Task-performance metrics measure whether the
-            agent solves the navigation problem. We report cumulative reward,
-            success rate, episode length, distance-to-goal reduction, and
-            Success weighted by Path Length (SPL).
-          </p>
-
-          <p>
-            SPL is defined as:
-          </p>
-
-          <p>
-            \[
-            \mathrm{SPL} =
-            S \cdot
-            \frac{L^\star}{\max(L, L^\star)}
-            \]
-          </p>
-
-          <p>
-            where \(S\) is 1 if the episode is successful and 0 otherwise,
-            \(L^\star\) is the shortest path length to the target, and \(L\) is
-            the path length actually traveled by the agent. SPL rewards agents
-            that reach the target efficiently.
-          </p>
-
-          <p>
-            Perception-efficiency metrics measure how much high-resolution
-            information the agent uses. We report the number of SENSE actions,
-            the remaining sensing budget, the final resolution level, and the
-            total sensing cost. These metrics test whether the adaptive agent
-            can approach the performance of the high-resolution baseline while
-            using fewer high-resolution observations.
-          </p>
-
-          <p>
-            Finally, we analyze the learned sensing behavior. We study whether
-            the agent tends to sense early in the episode, after rotations, near
-            the target, before DONE, or when the remaining budget is high. This
-            helps determine whether the agent has learned a meaningful adaptive
-            perception strategy rather than using high-resolution observations
-            randomly.
-          </p>
 
         </div>
       </div>
@@ -1047,31 +1077,51 @@ window.addEventListener("load", () => {
           </div>
 
           <p>
-            As visible in the videos above, the high-resolution agent is able to
-            reach its target object (in this case a bowl) relatively reliably after
-            some training. This suggests that the overall reward setup is effective.
-            The training curves below also show that the model reaches reasonable
-            performance after only a few hundred iterations.
+            As visible in the videos above, the high-resolution agent is able to reach its target object 
+            (in this case a bowl) relatively reliably after a moderate amount of training. This indicates 
+            that the overall environment setup, reward formulation, and training pipeline are sufficient for 
+            learning the simplified navigation task. In particular, it confirms that the agent can successfully 
+            associate visual observations with navigation actions with high resolution, which is a useful sanity check
+            before introducing adaptive sensing.
+          </p>
+
+          <p>
+            The training curves below further support this observation. After only a few hundred iterations, 
+            the model already reaches reasonable success performance of about ~0.5, and the SPL generally improves throughout training, 
+            indicating progressively more efficient navigation trajectories. The results shown here correspond to approximately 3500 training steps. 
+            This was sufficient to validate the proof of concept, but looking at the policy loss, there is room for improvement as the model does not seem to have converged fully.
+            Additional training would likely produce a significantly stronger baseline and more stable behavior. 
+            Due to time constraints, we instead prioritized experimentation with the adaptive resolution setup discussed below. 
+            For future work, a training budget of roughly 10000–15000 steps would likely be more appropriate for a high resolution reference model.
           </p>
 
           <!-- Graphs -->
           <div class="columns is-centered is-vcentered">
 
-            <div class="column is-half has-text-centered">
-              <h4 class="title is-5">Training reward</h4>
+            <div class="column is-one-third has-text-centered">
+              <h4 class="title is-6">POC SPL</h4>
               <img
-                src="./static/images/reward_graph.png"
+                src="./static/images/spl_POC.png"
                 alt="Training reward graph"
-                style="width: 95%; max-width: 700px; border-radius: 10px;"
+                style="width: 100%; max-width: 420px; border-radius: 10px;"
               >
             </div>
 
-            <div class="column is-half has-text-centered">
-              <h4 class="title is-5">Success rate</h4>
+            <div class="column is-one-third has-text-centered">
+              <h4 class="title is-6">POC success rate</h4>
               <img
-                src="./static/images/success_graph.png"
+                src="./static/images/success_ratePOC.png"
                 alt="Success rate graph"
-                style="width: 95%; max-width: 700px; border-radius: 10px;"
+                style="width: 100%; max-width: 420px; border-radius: 10px;"
+              >
+            </div>
+
+            <div class="column is-one-third has-text-centered">
+              <h4 class="title is-6">POC policy loss</h4>
+              <img
+                src="./static/images/policy_loss_POC.png"
+                alt="Success rate graph"
+                style="width: 100%; max-width: 420px; border-radius: 10px;"
               >
             </div>
 
@@ -1087,15 +1137,68 @@ window.addEventListener("load", () => {
             opposite behaviors.
           </p>
 
+          <div class="columns is-centered is-vcentered">
+
+            <div class="column is-half has-text-centered">
+              <h4 class="title is-5">Adaptive model at step 1100</h4>
+              <img
+                src="./static/gifs/adaptive1100.gif"
+                alt="adaptive at step 0"
+                style="width: 95%; max-width: 700px; border-radius: 10px;"
+              >
+            </div>
+
+            <div class="column is-half has-text-centered">
+              <h4 class="title is-5">Adaptive model at step 2700</h4>
+              <img
+                src="./static/gifs/adaptive2700.gif"
+                alt="POC at step 3500"
+                style="width: 95%; max-width: 700px; border-radius: 10px;"
+              >
+            </div>
+
+          </div>
+
+          <div class="columns is-centered is-vcentered">
+
+            <div class="column is-one-third has-text-centered">
+              <h4 class="title is-6">Adaptive not sensing SPL</h4>
+              <img
+                src="./static/images/spl_POC.png"
+                alt="Training reward graph"
+                style="width: 100%; max-width: 420px; border-radius: 10px;"
+              >
+            </div>
+
+            <div class="column is-one-third has-text-centered">
+              <h4 class="title is-6">Adaptive not sensing success rate</h4>
+              <img
+                src="./static/images/success_ratePOC.png"
+                alt="Success rate graph"
+                style="width: 100%; max-width: 420px; border-radius: 10px;"
+              >
+            </div>
+
+            <div class="column is-one-third has-text-centered">
+              <h4 class="title is-6">Adaptive not sensing policy loss</h4>
+              <img
+                src="./static/images/policy_loss_POC.png"
+                alt="Success rate graph"
+                style="width: 100%; max-width: 420px; border-radius: 10px;"
+              >
+            </div>
+
+          </div>
+
           <p>
-            The first issue is that the model tends to ignore the adaptive
+            The first issue (showcased above) is that the model tends to ignore the adaptive
             resolution mechanism and navigates using the minimum resolution
             throughout the episode. One reason for this is that the environment is
             relatively small, allowing the agent to succeed through partially random
             movement or by associating actions with background colors learned during
             the curriculum. Using multiple rooms could reduce this effect, but in
             practice the agent then struggles to converge. In addition, when the
-            image resolution becomes too low, sensing must become significantly more
+            image resolution becomes too low, sensing becomes significantly more
             expensive to recover meaningful information not already present in the
             low-resolution observation. Reducing the sensing cost can partially
             address this issue, but it directly reinforces the second problem
@@ -1104,10 +1207,10 @@ window.addEventListener("load", () => {
 
           <p>
             The second issue is the opposite behavior. Instead of ignoring sensing,
-            the model relies on it excessively while barely moving and remaining
-            near the same location. This occurs because sensing is less costly than
-            movement. When the agent fails to solve the task during curriculum
-            training, repeatedly sensing until the episode ends becomes less
+            the model relies on it excessively and only rotates while barely moving and remaining
+            near the same location. This occurs because sensing and rotating is less costly overall than
+            moving. When the agent fails to solve the task during curriculum
+            training, repeatedly sensing and rotating until the episode ends becomes less
             punishing than moving unsuccessfully. One possible solution would be to
             increase the task difficulty only once the agent reaches a sufficient
             success rate. However, this would likely strengthen the first issue by
@@ -1151,197 +1254,6 @@ window.addEventListener("load", () => {
     </div>
   </section>
 <!------------------------------------------------------------------------->
-
-<!-----------------------------TODO: VISUAL ITEMS THAT CAN BE USED-------------------------------->
-  <section class="section">
-    <div class="container is-max-desktop">
-      <!-- Visual Items. -->
-      <div class="columns is-centered">
-        <div class="column is-full-width">
-          <h2 class="title is-3" id="visual_items">V. Visual Items</h2>
-          <div class="content has-text-justified">
-            <p>
-            Here you can see possible visualizations that can be used in this website 
-            </p>
-          </div>
-        <h3 class="title is-4">Video Clip</h3>
-       <!-- Video can be added like this -->   
-        <div class="content has-text-centered">
-          <video id="replay-video"
-                 controls
-                 muted
-                 preload
-                 playsinline
-                 width="75%">
-            <source src="./static/videos/replay.mp4"
-                    type="video/mp4">
-          </video>
-        </div>
-       <!---------------------------------> 
-           
-      <h3 class="title is-4">Image Interpolation with Slider</h3>
-       <!-- Image can be added like this -->
-        <div class="columns is-vcentered interpolation-panel">
-          <div class="column is-3 has-text-centered">
-            <img src="./static/images/interpolate_start.jpg"
-                 class="interpolation-image"
-                 alt="Interpolate start reference image."/>
-            <p>Start Frame</p>
-          </div>
-          <div class="column interpolation-video-column">
-            <div id="interpolation-image-wrapper">
-              Loading...
-            </div>
-            <input class="slider is-fullwidth is-large is-info"
-                   id="interpolation-slider"
-                   step="1" min="0" max="100" value="0" type="range">
-          </div>
-          <div class="column is-3 has-text-centered">
-            <img src="./static/images/interpolate_end.jpg"
-                 class="interpolation-image"
-                 alt="Interpolation end reference image."/>
-            <p class="is-bold">End Frame</p>
-          </div>
-        </div>
-        
-<h3 class="title is-4">Double Column Media Display</h3>
-    <div class="columns is-centered is-multiline">
-      <!-- Column 1. -->
-      <div class="column is-half">
-        <div class="content">
-          <h3 class="title is-5">Column 1</h3>
-          <p>
-            Add a short description for the first video/image.
-          </p>
-          <video id="dollyzoom" autoplay controls muted loop playsinline width="100%">
-            <source src="./static/videos/dollyzoom-stacked.mp4"
-                    type="video/mp4">
-          </video>
-        </div>
-      </div>
-      <!--/ Column 1 -->
-
-      <!-- Column 2 -->
-      <div class="column is-half">
-        <div class="content">
-          <h3 class="title is-5">Column 2</h3>
-          <p>
-            Add a short description for the second video/image.
-          </p>
-          <video id="matting-video" controls playsinline width="100%">
-            <source src="./static/videos/matting.mp4"
-                    type="video/mp4">
-          </video>
-        </div>
-      </div>
-      <!--/ Column 2 -->
-    </div>
-  <!--------------------------------->
-<h3 class="title is-4">Card Media Display</h3>
-      <div class="columns is-centered">
-        <div class="column is-three-quarters">
-          <div align="center" class="box">
-            <img src="static/images/related_2.gif"
-              alt="3D Bezier curves are used for representing 3D sketches of objects.">
-            <h5 class="subtitle has-text-centered">
-              <font size="-0.7">
-                <span style="font-weight:normal">
-                  Write about the media displayed in the card here. You can also add a link to the media if needed.
-                </span>
-              </font>
-            </h5>
-          </div>
-        </div>
-      </div>
-<!--------------------------------->
-<h3 class="title is-4">LaTeX Equation</h3>
-  
-Format the equations using LaTeX and add them to the website like this:
-    <p>
-        \[
-        D_{\mathrm{KL}}(P \parallel Q) =
-        \sum_{x} P(x)\,\log\!\left(\frac{P(x)}{Q(x)}\right)
-        \]
-    </p>
-<!--------------------------------->
-
-<h3 class="title is-4">Sliding Media Display</h3>
-    <section class="section">
-      <div class="container is-max-desktop">
-        <div id="dataset-carousel" class="carousel results-carousel">
-          <a href="./static/gifs/bike.gif" data-lightbox="image">
-            <img src="./static/gifs/bike.gif" alt="Bike Object">
-          </a>
-
-          <a href="./static/gifs/duck.gif" data-lightbox="image">
-            <img src="./static/gifs/duck.gif" alt="Duck Object">
-          </a>
-
-          <a href="./static/gifs/horse.gif" data-lightbox="image">
-            <img src="./static/gifs/horse.gif" alt="Horse Object">
-          </a>
-
-          <a href="./static/gifs/rose.gif" data-lightbox="image">
-            <img src="./static/gifs/rose.gif" alt="Rose Object">
-          </a>
-        </div>
-      </div>
-    </section>
-<!--------------------------------->
-<h3 class="title is-4">Table</h3>
-
-<div class="content has-text-justified">
-  <p>
-    The table format below can be used for results and other purposes.
-  </p>
-  <div class="table-container">
-    <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth">
-      <thead>
-        <tr>
-          <th>Method</th>
-          <th>Metric 1</th>
-          <th>Metric 2</th>
-          <th>Notes</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Baseline</td>
-          <td>0.00</td>
-          <td>0.00</td>
-          <td>Reference setup</td>
-        </tr>
-        <tr>
-          <td>Method A</td>
-          <td>0.00</td>
-          <td>0.00</td>
-          <td>First variant</td>
-        </tr>
-        <tr>
-          <td>Method B</td>
-          <td>0.00</td>
-          <td>0.00</td>
-          <td>Second variant</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<!--------------------------------->
-<h3 class="title is-4">Interactive Plot</h3>
-<div class="box">
-  <iframe src="./static/plotly/interactive_plot.html" frameborder="0" width="100%"
-    height="500px"></iframe>
-</div>
-
-<!--------------------------------->
-
-        </div>
-      </div>
-      <!--/ Visual Items. -->
-    </div>
-  </section>
 
 <!-- REFERENCES -->
 <section class="section">
@@ -1414,7 +1326,13 @@ Format the equations using LaTeX and add them to the website like this:
                       Weights &amp; Biases monitoring. He also wrote the image degradation function,
                       contributed to AgentPolicy and the training loop, prepared a large part of
                       the presentation, and contributed to the project website.
-                      Add the contributions of each team member here.
+                    </p>
+                    <p>
+                      <strong>Antonin HUDRY:</strong> implemented most of the AI2-Thor setup, alongside
+                      the first few drafts of the reward shaping, the Euclidian distance computation; made the environment tests;
+                      implemented the environment updater;
+                      made the website, including all visuals
+                      and half of the text; reviewed code base; made half of the final presentation visuals, contributed to the final presentation text
                     </p>
                     <p><em>
                         This website is based on the <a href="https://github.com/nerfies/nerfies.github.io"
