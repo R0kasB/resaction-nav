@@ -1,90 +1,0 @@
-wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/bertasiu/.netrc.
-wandb: Currently logged in as: r0kasb (r0kasb-epfl) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
-wandb: setting up run 01ds35rq
-wandb: Tracking run with wandb version 0.26.1
-wandb: Run data is saved locally in /home/bertasiu/resaction-nav/wandb/run-20260514_011055-01ds35rq
-wandb: Run `wandb offline` to turn off syncing.
-wandb: Syncing run sweep-008-ec0.05_ds0.1_lr1e-04-adaptive
-wandb: ⭐️ View project at https://wandb.ai/r0kasb-epfl/ai2thor-rl
-wandb: 🚀 View run at https://wandb.ai/r0kasb-epfl/ai2thor-rl/runs/01ds35rq
-Using cache found in /home/bertasiu/.cache/torch/hub/facebookresearch_dinov2_main
-/home/bertasiu/.cache/torch/hub/facebookresearch_dinov2_main/dinov2/layers/swiglu_ffn.py:51: UserWarning: xFormers is not available (SwiGLU)
-  warnings.warn("xFormers is not available (SwiGLU)")
-/home/bertasiu/.cache/torch/hub/facebookresearch_dinov2_main/dinov2/layers/attention.py:33: UserWarning: xFormers is not available (Attention)
-  warnings.warn("xFormers is not available (Attention)")
-/home/bertasiu/.cache/torch/hub/facebookresearch_dinov2_main/dinov2/layers/block.py:40: UserWarning: xFormers is not available (Block)
-  warnings.warn("xFormers is not available (Block)")
-  0%|          | 0/1500 [00:00<?, ?it/s][ep    0] reward (last 10): -1.024 | steps: 4.0 | success: 0% | sense actions: 1
-  0%|          | 4/1500 [00:35<3:40:11,  8.83s/it]  1%|          | 8/1500 [01:27<4:42:50, 11.37s/it][ep   10] reward (last 10): -1.117 | steps: 18.7 | success: 0% | sense actions: 5
-  1%|          | 12/1500 [01:59<4:01:26,  9.74s/it]  1%|          | 16/1500 [02:48<4:26:59, 10.79s/it]  1%|▏         | 20/1500 [03:16<3:51:15,  9.38s/it][ep   20] reward (last 10): -1.134 | steps: 15.1 | success: 0% | sense actions: 0
-  2%|▏         | 24/1500 [03:45<3:34:19,  8.71s/it]  2%|▏         | 28/1500 [04:23<3:39:05,  8.93s/it][ep   30] reward (last 10): -1.078 | steps: 12.6 | success: 0% | sense actions: 2
-  2%|▏         | 32/1500 [05:08<3:56:23,  9.66s/it]  2%|▏         | 36/1500 [05:36<3:35:03,  8.81s/it]  3%|▎         | 40/1500 [06:15<3:41:59,  9.12s/it][ep   40] reward (last 10): -1.144 | steps: 14.3 | success: 0% | sense actions: 0
-  3%|▎         | 44/1500 [06:53<3:44:20,  9.24s/it]  3%|▎         | 48/1500 [07:35<3:53:55,  9.67s/it][ep   50] reward (last 10): -1.129 | steps: 13.8 | success: 0% | sense actions: 0
-  3%|▎         | 52/1500 [08:08<3:41:11,  9.17s/it]  4%|▎         | 56/1500 [08:30<3:15:34,  8.13s/it]  4%|▍         | 60/1500 [09:25<3:54:59,  9.79s/it][ep   60] reward (last 10): -1.047 | steps: 10.0 | success: 0% | sense actions: 0
-  4%|▍         | 64/1500 [09:49<3:27:11,  8.66s/it]  5%|▍         | 68/1500 [10:20<3:20:20,  8.39s/it][ep   70] reward (last 10): -1.010 | steps: 5.7 | success: 0% | sense actions: 0
-  5%|▍         | 72/1500 [10:55<3:21:11,  8.45s/it]  5%|▌         | 76/1500 [11:22<3:09:56,  8.00s/it]  5%|▌         | 80/1500 [11:47<2:56:22,  7.45s/it][ep   80] reward (last 10): -1.012 | steps: 4.9 | success: 0% | sense actions: 0
-  6%|▌         | 84/1500 [12:07<2:37:58,  6.69s/it]  6%|▌         | 88/1500 [12:28<2:27:25,  6.26s/it][ep   90] reward (last 10): -1.008 | steps: 3.8 | success: 0% | sense actions: 0
-  6%|▌         | 92/1500 [12:53<2:27:12,  6.27s/it]  6%|▋         | 96/1500 [13:30<2:46:49,  7.13s/it]  7%|▋         | 100/1500 [14:02<2:53:12,  7.42s/it][ep  100] reward (last 10): -1.010 | steps: 3.4 | success: 0% | sense actions: 0
-  7%|▋         | 104/1500 [14:36<2:59:50,  7.73s/it]  7%|▋         | 108/1500 [15:00<2:48:11,  7.25s/it][ep  110] reward (last 10): -1.032 | steps: 5.8 | success: 0% | sense actions: 0
-  7%|▋         | 112/1500 [15:29<2:46:30,  7.20s/it]  8%|▊         | 116/1500 [15:51<2:35:16,  6.73s/it]  8%|▊         | 120/1500 [16:12<2:23:36,  6.24s/it][ep  120] reward (last 10): -1.008 | steps: 2.8 | success: 0% | sense actions: 0
-  8%|▊         | 124/1500 [16:38<2:25:30,  6.34s/it]  9%|▊         | 128/1500 [17:05<2:28:19,  6.49s/it][ep  130] reward (last 10): -1.001 | steps: 3.0 | success: 0% | sense actions: 0
-  9%|▉         | 132/1500 [17:30<2:25:28,  6.38s/it]  9%|▉         | 136/1500 [17:51<2:18:23,  6.09s/it]  9%|▉         | 140/1500 [18:22<2:28:50,  6.57s/it][ep  140] reward (last 10): -0.998 | steps: 3.9 | success: 0% | sense actions: 0
- 10%|▉         | 144/1500 [18:59<2:46:00,  7.35s/it] 10%|▉         | 148/1500 [19:23<2:36:24,  6.94s/it][ep  150] reward (last 10): -1.023 | steps: 7.5 | success: 0% | sense actions: 0
- 10%|█         | 152/1500 [19:43<2:23:48,  6.40s/it] 10%|█         | 156/1500 [20:13<2:29:39,  6.68s/it] 11%|█         | 160/1500 [21:12<3:23:12,  9.10s/it][ep  160] reward (last 10): -1.022 | steps: 8.9 | success: 0% | sense actions: 0
- 11%|█         | 164/1500 [22:05<3:50:41, 10.36s/it] 11%|█         | 168/1500 [23:39<5:17:05, 14.28s/it][ep  170] reward (last 10): -1.073 | steps: 23.6 | success: 0% | sense actions: 1
- 11%|█▏        | 172/1500 [24:38<5:20:48, 14.49s/it] 12%|█▏        | 176/1500 [25:59<5:57:46, 16.21s/it] 12%|█▏        | 180/1500 [27:30<6:39:31, 18.16s/it][ep  180] reward (last 10): -1.111 | steps: 22.8 | success: 0% | sense actions: 0
- 12%|█▏        | 184/1500 [28:21<6:02:09, 16.51s/it] 13%|█▎        | 188/1500 [31:27<9:18:02, 25.52s/it][ep  190] reward (last 10): -1.146 | steps: 38.2 | success: 0% | sense actions: 0
- 13%|█▎        | 192/1500 [32:36<8:21:57, 23.03s/it] 13%|█▎        | 196/1500 [36:33<12:16:32, 33.89s/it] 13%|█▎        | 200/1500 [42:36<18:23:53, 50.95s/it][ep  200] reward (last 10): -1.565 | steps: 130.0 | success: 0% | sense actions: 1
- 14%|█▎        | 204/1500 [48:40<22:40:28, 62.99s/it] 14%|█▍        | 208/1500 [53:15<23:13:59, 64.74s/it][ep  210] reward (last 10): -1.940 | steps: 155.5 | success: 0% | sense actions: 1
- 14%|█▍        | 212/1500 [59:09<25:42:46, 71.87s/it] 14%|█▍        | 216/1500 [1:05:16<27:44:52, 77.80s/it] 15%|█▍        | 220/1500 [1:10:43<28:05:36, 79.01s/it][ep  220] reward (last 10): -1.807 | steps: 133.3 | success: 0% | sense actions: 1
- 15%|█▍        | 224/1500 [1:16:47<29:16:14, 82.58s/it]wandb: uploading data; updating run metadata
-wandb: uploading output.log; uploading wandb-summary.json; uploading config.yaml
-wandb: uploading output.log; uploading wandb-summary.json
-wandb: 
-wandb: Run history:
-wandb:              entropy █▇██▇▇▅▅▅▆▅▅▅▄▂▄▃▃▄▃▄▅▄▄▄▅▄▄▃▃▃▁▁▁▁▃▃▃▃▂
-wandb:              episode ▁▁▁▁▁▂▂▃▃▃▄▄▄▄▄▄▄▄▄▅▅▅▅▅▅▆▆▆▆▇▇▇▇▇▇▇▇███
-wandb:       episode_length ▁▁▂▂▂▂▁▁▁▁▂▁▁▁▁▁▁▁▂▁▁▁▁▁▁▁▁▂▁▂▁▂▁▄▆███▂█
-wandb:      final_downgrade ████████████████▁██▁██████▁████████▁████
-wandb: final_sensing_budget ▆▆▃███▆██▃▆▃████████████▆█████████▃▁█▆▆▆
-wandb:    num_sense_actions ▃▁▃▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▁▁▁▁▁▁▆▆█▁▃▁▁
-wandb:          policy_loss ▁▄▄▄▅▆▆▃▇▇▅▅▅▆▄▆▆▄▆▇▇▆▇▅▆▆▆▆▇▆▄▄▄██████▇
-wandb:               reward ██▇▇▆▆███████████████████████████▇▆▅▁▆▆▄
-wandb:              success ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
-wandb:      success_rate_10 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
-wandb:                   +1 ...
-wandb: 
-wandb: Run summary:
-wandb:              entropy 1.55707
-wandb:              episode 223
-wandb:       episode_length 189
-wandb:      final_downgrade 7
-wandb: final_sensing_budget 5
-wandb:    num_sense_actions 0
-wandb:          policy_loss -0.0052
-wandb:               reward -2.04193
-wandb:              success 0
-wandb:      success_rate_10 0
-wandb:                   +1 ...
-wandb: 
-wandb: 🚀 View run sweep-008-ec0.05_ds0.1_lr1e-04-adaptive at: https://wandb.ai/r0kasb-epfl/ai2thor-rl/runs/01ds35rq
-wandb: ⭐️ View project at: https://wandb.ai/r0kasb-epfl/ai2thor-rl
-wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
-wandb: Find logs at: ./wandb/run-20260514_011055-01ds35rq/logs
-Traceback (most recent call last):
-  File "/home/bertasiu/resaction-nav/scripts/run_pipeline.py", line 80, in <module>
-    summary = run_pipeline(cfg_path=args.cfg, resume=args.resume, smoke=args.smoke, agent_type=args.agent)
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/bertasiu/resaction-nav/scripts/run_pipeline.py", line 57, in run_pipeline
-    return train_module.run_training_pipeline(cfg=cfg, resume_path=resume, agent_type=agent_type)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/bertasiu/resaction-nav/scripts/train.py", line 519, in run_training_pipeline
-    rewards, episode_lengths, successes = run_agent(
-                                          ^^^^^^^^^^
-  File "/home/bertasiu/resaction-nav/scripts/train.py", line 352, in run_agent
-    loss_dict = agent.update(
-                ^^^^^^^^^^^^^
-  File "/home/bertasiu/resaction-nav/src/agents/ppo_agent.py", line 133, in update
-    images = torch.stack([t["image"] for t in trajectory])
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 460.00 MiB. GPU 0 has a total capacity of 31.74 GiB of which 440.12 MiB is free. Process 2505944 has 3.14 GiB memory in use. Process 2505931 has 2.66 GiB memory in use. Process 2505932 has 2.41 GiB memory in use. Process 2505938 has 1.79 GiB memory in use. Process 2505943 has 1.96 GiB memory in use. Process 2505935 has 2.69 GiB memory in use. Including non-PyTorch memory, this process has 1.49 GiB memory in use. Process 2505928 has 3.20 GiB memory in use. Process 2505929 has 2.29 GiB memory in use. Process 2507610 has 273.15 MiB memory in use. Process 2507612 has 273.15 MiB memory in use. Process 2507616 has 273.15 MiB memory in use. Process 2507617 has 273.15 MiB memory in use. Process 2507613 has 273.15 MiB memory in use. Process 2507611 has 275.21 MiB memory in use. Process 2507609 has 273.15 MiB memory in use. Process 2507614 has 273.15 MiB memory in use. Process 2507615 has 275.21 MiB memory in use. Process 2508273 has 273.15 MiB memory in use. Process 2508277 has 273.15 MiB memory in use. Process 2508396 has 275.21 MiB memory in use. Process 2508397 has 273.15 MiB memory in use. Process 2508400 has 275.21 MiB memory in use. Process 2508402 has 273.15 MiB memory in use. Process 2508409 has 273.15 MiB memory in use. Process 2508700 has 273.15 MiB memory in use. Process 2508702 has 273.15 MiB memory in use. Process 2508903 has 275.21 MiB memory in use. Process 2508963 has 273.15 MiB memory in use. Process 2509026 has 275.21 MiB memory in use. Process 2509107 has 273.15 MiB memory in use. Process 2509112 has 273.15 MiB memory in use. Process 2509231 has 275.21 MiB memory in use. Process 2509234 has 275.21 MiB memory in use. Process 2509375 has 273.15 MiB memory in use. Process 2509409 has 273.15 MiB memory in use. Process 2509534 has 275.21 MiB memory in use. Process 2509538 has 275.21 MiB memory in use. Process 2509669 has 273.15 MiB memory in use. Process 2509747 has 273.15 MiB memory in use. Process 2509746 has 275.21 MiB memory in use. Process 2509866 has 275.21 MiB memory in use. Process 2509930 has 275.21 MiB memory in use. Process 2510002 has 273.15 MiB memory in use. Process 2510006 has 275.21 MiB memory in use. Of the allocated memory 860.82 MiB is allocated by PyTorch, and 275.18 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)

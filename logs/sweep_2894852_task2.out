@@ -1,65 +1,0 @@
-wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/bertasiu/.netrc.
-wandb: Currently logged in as: r0kasb (r0kasb-epfl) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
-wandb: Tracking run with wandb version 0.26.1
-wandb: Run data is saved locally in /home/bertasiu/resaction-nav/wandb/run-20260514_011055-4k9jop4t
-wandb: Run `wandb offline` to turn off syncing.
-wandb: Syncing run sweep-002-ec0.01_ds0.1_lr1e-04-adaptive
-wandb: ⭐️ View project at https://wandb.ai/r0kasb-epfl/ai2thor-rl
-wandb: 🚀 View run at https://wandb.ai/r0kasb-epfl/ai2thor-rl/runs/4k9jop4t
-Using cache found in /home/bertasiu/.cache/torch/hub/facebookresearch_dinov2_main
-/home/bertasiu/.cache/torch/hub/facebookresearch_dinov2_main/dinov2/layers/swiglu_ffn.py:51: UserWarning: xFormers is not available (SwiGLU)
-  warnings.warn("xFormers is not available (SwiGLU)")
-/home/bertasiu/.cache/torch/hub/facebookresearch_dinov2_main/dinov2/layers/attention.py:33: UserWarning: xFormers is not available (Attention)
-  warnings.warn("xFormers is not available (Attention)")
-/home/bertasiu/.cache/torch/hub/facebookresearch_dinov2_main/dinov2/layers/block.py:40: UserWarning: xFormers is not available (Block)
-  warnings.warn("xFormers is not available (Block)")
-  0%|          | 0/1500 [00:00<?, ?it/s][ep    0] reward (last 10): -1.024 | steps: 4.0 | success: 0% | sense actions: 1
-  0%|          | 4/1500 [00:35<3:40:23,  8.84s/it]  1%|          | 8/1500 [01:28<4:45:44, 11.49s/it][ep   10] reward (last 10): -1.087 | steps: 16.6 | success: 0% | sense actions: 2
-  1%|          | 12/1500 [02:06<4:22:14, 10.57s/it]  1%|          | 16/1500 [02:54<4:35:21, 11.13s/it]  1%|▏         | 20/1500 [03:22<3:58:24,  9.66s/it][ep   20] reward (last 10): -1.302 | steps: 31.6 | success: 0% | sense actions: 15
-  2%|▏         | 24/1500 [04:37<5:12:01, 12.68s/it]  2%|▏         | 28/1500 [06:16<6:49:49, 16.70s/it][ep   30] reward (last 10): -1.289 | steps: 36.8 | success: 0% | sense actions: 5
-  2%|▏         | 32/1500 [07:19<6:40:17, 16.36s/it]  2%|▏         | 36/1500 [09:24<8:33:24, 21.04s/it]  3%|▎         | 40/1500 [10:05<7:10:17, 17.68s/it][ep   40] reward (last 10): -1.203 | steps: 35.5 | success: 0% | sense actions: 2
-  3%|▎         | 44/1500 [11:28<7:32:45, 18.66s/it]  3%|▎         | 48/1500 [14:48<11:21:41, 28.17s/it][ep   50] reward (last 10): -1.259 | steps: 61.6 | success: 0% | sense actions: 0
-  3%|▎         | 52/1500 [15:57<9:59:47, 24.85s/it]   4%|▎         | 56/1500 [19:18<13:02:52, 32.53s/it]  4%|▍         | 60/1500 [25:20<19:59:05, 49.96s/it][ep   60] reward (last 10): -1.342 | steps: 145.7 | success: 0% | sense actions: 2
-  4%|▍         | 64/1500 [30:55<23:59:51, 60.16s/it]  5%|▍         | 68/1500 [37:31<28:33:48, 71.81s/it][ep   70] reward (last 10): -1.399 | steps: 180.9 | success: 0% | sense actions: 0
-  5%|▍         | 72/1500 [44:12<31:53:06, 80.38s/it]  5%|▌         | 76/1500 [51:07<34:34:20, 87.40s/it]  5%|▌         | 80/1500 [58:25<37:04:52, 94.01s/it][ep   80] reward (last 10): -1.440 | steps: 194.4 | success: 0% | sense actions: 2
-  6%|▌         | 84/1500 [1:05:44<38:51:35, 98.80s/it]  6%|▌         | 88/1500 [1:12:52<39:41:56, 101.22s/it][ep   90] reward (last 10): -1.441 | steps: 196.9 | success: 0% | sense actions: 0
-  6%|▌         | 92/1500 [1:20:21<40:53:29, 104.55s/it]  6%|▋         | 96/1500 [1:25:39<37:50:28, 97.03s/it]   7%|▋         | 100/1500 [1:32:24<38:14:13, 98.32s/it][ep  100] reward (last 10): -1.428 | steps: 185.4 | success: 0% | sense actions: 2
-  7%|▋         | 104/1500 [1:38:46<37:46:55, 97.43s/it]  7%|▋         | 108/1500 [1:45:08<37:26:37, 96.84s/it][ep  110] reward (last 10): -1.407 | steps: 179.0 | success: 0% | sense actions: 1
-  7%|▋         | 112/1500 [1:50:29<35:26:14, 91.91s/it]  8%|▊         | 116/1500 [1:56:42<35:28:23, 92.27s/it]  8%|▊         | 120/1500 [2:03:17<36:07:39, 94.25s/it][ep  120] reward (last 10): -1.505 | steps: 200.0 | success: 0% | sense actions: 1
-  8%|▊         | 124/1500 [2:09:41<36:13:17, 94.77s/it]  9%|▊         | 128/1500 [2:16:10<36:23:37, 95.49s/it][ep  130] reward (last 10): -1.690 | steps: 197.3 | success: 0% | sense actions: 2
-  9%|▉         | 132/1500 [2:22:45<36:39:20, 96.46s/it]  9%|▉         | 136/1500 [2:29:18<36:45:51, 97.03s/it]  9%|▉         | 140/1500 [2:35:55<36:53:20, 97.65s/it][ep  140] reward (last 10): -1.614 | steps: 200.0 | success: 0% | sense actions: 2
- 10%|▉         | 144/1500 [2:42:17<36:33:49, 97.07s/it] 10%|▉         | 148/1500 [2:48:54<36:41:42, 97.71s/it][ep  150] reward (last 10): -1.442 | steps: 200.0 | success: 0% | sense actions: 0
- 10%|█         | 152/1500 [2:55:28<36:40:44, 97.96s/it] 10%|█         | 156/1500 [3:02:10<36:50:05, 98.66s/it] 11%|█         | 160/1500 [3:08:46<36:46:25, 98.80s/it][ep  160] reward (last 10): -1.498 | steps: 200.0 | success: 0% | sense actions: 1
- 11%|█         | 164/1500 [3:15:11<36:23:36, 98.07s/it] 11%|█         | 168/1500 [3:21:50<36:27:15, 98.53s/it][ep  170] reward (last 10): -1.444 | steps: 200.0 | success: 0% | sense actions: 0
- 11%|█▏        | 172/1500 [3:28:28<36:27:33, 98.84s/it] 12%|█▏        | 176/1500 [3:35:11<36:33:50, 99.42s/it] 12%|█▏        | 180/1500 [3:41:48<36:25:46, 99.35s/it][ep  180] reward (last 10): -1.419 | steps: 200.0 | success: 0% | sense actions: 0
- 12%|█▏        | 184/1500 [3:48:21<36:11:47, 99.02s/it] 13%|█▎        | 188/1500 [3:54:57<36:05:23, 99.03s/it][ep  190] reward (last 10): -1.438 | steps: 187.9 | success: 0% | sense actions: 1
- 13%|█▎        | 192/1500 [4:00:34<34:21:21, 94.56s/it] 13%|█▎        | 196/1500 [4:07:07<34:39:27, 95.68s/it] 13%|█▎        | 200/1500 [4:13:40<34:49:42, 96.45s/it][ep  200] reward (last 10): -1.428 | steps: 200.0 | success: 0% | sense actions: 0
- 14%|█▎        | 204/1500 [4:20:01<34:36:30, 96.13s/it] 14%|█▍        | 208/1500 [4:25:23<32:48:35, 91.42s/it][ep  210] reward (last 10): -1.361 | steps: 184.9 | success: 0% | sense actions: 0
- 14%|█▍        | 212/1500 [4:31:43<33:05:35, 92.50s/it] 14%|█▍        | 216/1500 [4:38:11<33:27:33, 93.81s/it] 15%|█▍        | 220/1500 [4:44:40<33:43:19, 94.84s/it][ep  220] reward (last 10): -1.409 | steps: 200.0 | success: 0% | sense actions: 0
- 15%|█▍        | 224/1500 [4:51:03<33:43:53, 95.17s/it] 15%|█▌        | 228/1500 [4:57:35<33:54:20, 95.96s/it][ep  230] reward (last 10): -1.393 | steps: 200.0 | success: 0% | sense actions: 0
- 15%|█▌        | 232/1500 [5:04:10<34:06:56, 96.86s/it] 16%|█▌        | 236/1500 [5:10:45<34:11:55, 97.40s/it] 16%|█▌        | 240/1500 [5:17:20<34:13:18, 97.78s/it][ep  240] reward (last 10): -1.401 | steps: 200.0 | success: 0% | sense actions: 0
- 16%|█▋        | 244/1500 [5:23:49<34:03:45, 97.63s/it] 17%|█▋        | 248/1500 [5:30:19<33:56:26, 97.59s/it][ep  250] reward (last 10): -1.408 | steps: 200.0 | success: 0% | sense actions: 0
- 17%|█▋        | 252/1500 [5:36:54<33:57:07, 97.94s/it] 17%|█▋        | 256/1500 [5:43:26<33:51:36, 97.99s/it] 17%|█▋        | 260/1500 [5:49:58<33:44:25, 97.96s/it][ep  260] reward (last 10): -1.395 | steps: 200.0 | success: 0% | sense actions: 0
- 18%|█▊        | 264/1500 [5:56:27<33:34:18, 97.78s/it] 18%|█▊        | 268/1500 [6:02:59<33:29:22, 97.86s/it][ep  270] reward (last 10): -1.415 | steps: 200.0 | success: 0% | sense actions: 0
- 18%|█▊        | 272/1500 [6:09:21<33:08:17, 97.15s/it] 18%|█▊        | 276/1500 [6:15:40<32:45:51, 96.37s/it] 19%|█▊        | 280/1500 [6:22:07<32:42:20, 96.51s/it][ep  280] reward (last 10): -1.401 | steps: 200.0 | success: 0% | sense actions: 0
- 19%|█▉        | 284/1500 [6:28:50<33:01:56, 97.79s/it] 19%|█▉        | 288/1500 [6:35:14<32:44:00, 97.23s/it][ep  290] reward (last 10): -1.398 | steps: 200.0 | success: 0% | sense actions: 0
- 19%|█▉        | 292/1500 [6:41:41<32:34:41, 97.09s/it] 20%|█▉        | 296/1500 [6:47:05<30:51:08, 92.25s/it] 20%|██        | 300/1500 [6:53:37<31:20:26, 94.02s/it][ep  300] reward (last 10): -1.345 | steps: 180.1 | success: 0% | sense actions: 0
- 20%|██        | 304/1500 [7:00:03<31:28:28, 94.74s/it] 21%|██        | 308/1500 [7:06:39<31:47:36, 96.02s/it][ep  310] reward (last 10): -1.404 | steps: 200.0 | success: 0% | sense actions: 0
- 21%|██        | 312/1500 [7:13:08<31:49:09, 96.42s/it] 21%|██        | 316/1500 [7:19:39<31:50:07, 96.80s/it] 21%|██▏       | 320/1500 [7:26:10<31:49:09, 97.08s/it][ep  320] reward (last 10): -1.395 | steps: 200.0 | success: 0% | sense actions: 0
- 22%|██▏       | 324/1500 [7:32:34<31:36:22, 96.75s/it] 22%|██▏       | 328/1500 [7:39:10<31:42:31, 97.40s/it][ep  330] reward (last 10): -1.392 | steps: 200.0 | success: 0% | sense actions: 0
- 22%|██▏       | 332/1500 [7:45:45<31:44:11, 97.82s/it] 22%|██▏       | 336/1500 [7:52:14<31:34:06, 97.63s/it] 23%|██▎       | 340/1500 [7:58:51<31:37:06, 98.13s/it][ep  340] reward (last 10): -1.388 | steps: 200.0 | success: 0% | sense actions: 0
- 23%|██▎       | 344/1500 [8:05:08<31:08:19, 96.97s/it] 23%|██▎       | 348/1500 [8:11:48<31:19:20, 97.88s/it][ep  350] reward (last 10): -1.382 | steps: 200.0 | success: 0% | sense actions: 0
- 23%|██▎       | 352/1500 [8:18:25<31:21:30, 98.34s/it] 24%|██▎       | 356/1500 [8:25:04<31:21:56, 98.70s/it] 24%|██▍       | 360/1500 [8:31:40<31:18:11, 98.85s/it][ep  360] reward (last 10): -1.390 | steps: 200.0 | success: 0% | sense actions: 0
- 24%|██▍       | 364/1500 [8:38:11<31:04:54, 98.50s/it] 25%|██▍       | 368/1500 [8:44:45<30:57:39, 98.46s/it][ep  370] reward (last 10): -1.387 | steps: 200.0 | success: 0% | sense actions: 0
- 25%|██▍       | 372/1500 [8:51:17<30:49:36, 98.38s/it] 25%|██▌       | 376/1500 [8:57:48<30:39:25, 98.19s/it] 25%|██▌       | 380/1500 [9:04:19<30:29:42, 98.02s/it][ep  380] reward (last 10): -1.392 | steps: 200.0 | success: 0% | sense actions: 0
- 26%|██▌       | 384/1500 [9:09:52<29:01:22, 93.62s/it] 26%|██▌       | 388/1500 [9:16:27<29:23:12, 95.14s/it][ep  390] reward (last 10): -1.422 | steps: 189.9 | success: 0% | sense actions: 1
- 26%|██▌       | 392/1500 [9:22:58<29:30:57, 95.90s/it] 26%|██▋       | 396/1500 [9:29:35<29:43:11, 96.91s/it] 27%|██▋       | 400/1500 [9:36:02<29:35:41, 96.86s/it][ep  400] reward (last 10): -1.454 | steps: 200.0 | success: 0% | sense actions: 0
- 27%|██▋       | 404/1500 [9:42:32<29:32:58, 97.06s/it] 27%|██▋       | 408/1500 [9:49:10<29:40:19, 97.82s/it][ep  410] reward (last 10): -1.405 | steps: 200.0 | success: 0% | sense actions: 0
- 27%|██▋       | 412/1500 [9:55:44<29:36:44, 97.98s/it] 28%|██▊       | 416/1500 [10:02:23<29:39:30, 98.50s/it] 28%|██▊       | 420/1500 [10:08:55<29:30:57, 98.39s/it][ep  420] reward (last 10): -1.428 | steps: 200.0 | success: 0% | sense actions: 0
- 28%|██▊       | 424/1500 [10:15:24<29:18:49, 98.08s/it] 29%|██▊       | 428/1500 [10:21:59<29:15:57, 98.28s/it][ep  430] reward (last 10): -1.436 | steps: 200.0 | success: 0% | sense actions: 0
- 29%|██▉       | 432/1500 [10:28:34<29:11:12, 98.38s/it] 29%|██▉       | 436/1500 [10:35:01<28:55:23, 97.86s/it] 29%|██▉       | 440/1500 [10:41:34<28:50:56, 97.98s/it][ep  440] reward (last 10): -1.405 | steps: 200.0 | success: 0% | sense actions: 0
- 30%|██▉       | 444/1500 [10:47:57<28:33:49, 97.38s/it] 30%|██▉       | 448/1500 [10:54:33<28:35:46, 97.86s/it][ep  450] reward (last 10): -1.424 | steps: 200.0 | success: 0% | sense actions: 0
- 30%|███       | 452/1500 [11:01:07<28:32:04, 98.02s/it] 30%|███       | 456/1500 [11:07:39<28:25:57, 98.04s/it] 31%|███       | 460/1500 [11:14:14<28:23:06, 98.26s/it][ep  460] reward (last 10): -1.397 | steps: 200.0 | success: 0% | sense actions: 0
- 31%|███       | 464/1500 [11:20:44<28:12:13, 98.01s/it] 31%|███       | 468/1500 [11:27:21<28:12:27, 98.40s/it][ep  470] reward (last 10): -1.400 | steps: 200.0 | success: 0% | sense actions: 0
- 31%|███▏      | 472/1500 [11:33:54<28:04:30, 98.32s/it] 32%|███▏      | 476/1500 [11:40:22<27:51:57, 97.97s/it] 32%|███▏      | 480/1500 [11:46:46<27:35:30, 97.38s/it][ep  480] reward (last 10): -1.389 | steps: 200.0 | success: 0% | sense actions: 0
- 32%|███▏      | 484/1500 [11:53:15<27:27:39, 97.30s/it]
