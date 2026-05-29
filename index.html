@@ -1456,9 +1456,27 @@ window.addEventListener("load", () => {
                     <p>
                       <strong>Antonin HUDRY:</strong> implemented most of the AI2-Thor setup, alongside
                       the first few drafts of the reward shaping, the Euclidian distance computation; made the environment tests;
+                      implemented part of the observation pipeline;
                       implemented the environment updater;
                       made the website, including all visuals
                       and half of the text; reviewed code base; made half of the final presentation visuals, contributed to the final presentation text
+                    </p>
+                    <p>
+                      <strong>Rokas Bertašius:</strong> initialized the project repository and implemented the preliminary codebase 
+                      (thor_env, PPO agent, LSTM model, training script, and configs) that served as the basis for later development; 
+                      set up and maintained the training infrastructure on the IZAR HPC cluster 
+                      (environment setup, uv PATH resolution, Python 3.12/CUDA 12.1 compatibility, multi-GPU support); 
+                      refined the PPO agent and policy model; built the hyperparameter sweep system with parameter 
+                      grid generation and Weights & Biases run grouping; implemented per-step auxiliary feature logging and trajectory plotting; 
+                      iteratively tuned the reward function and training hyperparameters; diagnosed and fixed DONE-action 
+                      learning via a poc_rokas training mode, distance-gated penalties, distance-only success check, and adaptive resolution 
+                      onset control; added checkpoint retry logic for NFS failures; designed training configurations including parallel 
+                      environment runs; and contributed to the final presentation and reviewed the project website.
+                    </p>
+                    <p>
+                      <strong>Ryan Gold:</strong> wrote the initial training loop and PPO training script; implemented part of the observation pipeline; 
+                      added pipeline testing; and worked on parallel environment execution and the target-object embedding. 
+                      He left the project after the mid-project presentation.
                     </p>
                     <p><em>
                         This website is based on the <a href="https://github.com/nerfies/nerfies.github.io"
