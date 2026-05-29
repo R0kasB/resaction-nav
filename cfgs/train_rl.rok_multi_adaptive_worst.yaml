@@ -3,52 +3,57 @@ agent_type: high_res
 training:
   scenes:
     - FloorPlan1
+    - FloorPlan2
+    - FloorPlan3
+    - FloorPlan4
+    - FloorPlan5
+    - FloorPlan6
   num_episodes: 15000
   num_parallel_envs: 4
   auto_cluster_run_id: true
   run_id: null
   print_every: 10
-  checkpoint_every: 100
-  output_dir: output
-  checkpoint_dir: checkpoints
+  checkpoint_every: 200
+  output_dir: output/rok_multi_adaptive_worst
+  checkpoint_dir: checkpoints/rok_multi_adaptive_worst
   resume_from: null
   target:
-    mode: fixed
-    object_type: Mug
+    mode: random
+    object_type: null
     cycle: null
-    candidates: ["Mug"]
+    candidates: ["Mug", "Bowl"]
 
 env:
   target_object_embed_dim: 8
   base_resolution: [224, 224]
   success_distance: 1
-  max_steps: 50
-  max_sensing_budget: 0
-  fixed_high_res: true
-  action_set: minimal
+  max_steps: 350
+  max_sensing_budget: 350
+  fixed_high_res: false
+  start_downgrade: 7
   move_magnitude: 0.25
   rotate_degrees: 45.0
   look_degrees: 15.0
   visibility_distance: 3
   seed: 42
-  randomize_object_spawn: True
+  randomize_object_spawn: true
   reward_cfg:
     step_penalty: 0.01
     sense_penalty: 0.0
-    oversensing_penalty: 0.0
-    bump_penalty: 0.05
+    oversensing_penalty: 0.02
+    bump_penalty: 0.02
     fail_penalty: 2.0
     wrong_done_penalty: 1.5
     success_reward: 10.0
     distance_scale: 0.05
 
 agent:
-  mode: poc_rokas
+  mode: poc_rokas_adaptive
   lr: 1.0e-4
   gamma: 0.99
   clip_eps: 0.1
   value_coef: 0.5
-  entropy_coef: 0.04
+  entropy_coef: 0.07
   epochs: 4
 
 model:
@@ -62,7 +67,7 @@ wandb:
   enabled: true
   project: ai2thor-rl
   entity: r0kasb-epfl
-  run_name: poc_high_res_done
+  run_name: rok_multi_adaptive_worst
 
 trajectory_logging:
   enabled: false
@@ -70,4 +75,4 @@ trajectory_logging:
 huggingface:
   repo_id: R0kasB/resaction-nav
   push: false
-  push_every: 100
+  push_every: 200

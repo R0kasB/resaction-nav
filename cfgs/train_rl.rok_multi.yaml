@@ -8,7 +8,7 @@ training:
     - FloorPlan4
     - FloorPlan5
     - FloorPlan6
-  num_episodes: 10000
+  num_episodes: 15000
   num_parallel_envs: 4
   auto_cluster_run_id: true
   run_id: null

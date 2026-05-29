@@ -3,7 +3,7 @@ agent_type: high_res
 training:
   scenes:
     - FloorPlan1
-  num_episodes: 10000
+  num_episodes: 15000
   num_parallel_envs: 4
   auto_cluster_run_id: true
   run_id: null

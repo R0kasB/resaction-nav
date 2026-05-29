@@ -30,19 +30,20 @@ class RewardConfig:
     first_visibility_bonus: float = 0.5
 
 
-MOVE_ACTIONS = {"MoveAhead", "MoveRight", "MoveLeft", "MoveBack"}
+# MOVE_ACTIONS = {"MoveAhead", "MoveRight", "MoveLeft", "MoveBack"}
+MOVE_ACTIONS = {"MoveAhead"}
 
 ACTION_LIST = [
     "MoveAhead",
-    "MoveRight",
-    "MoveLeft",
-    "MoveBack",
+    # "MoveRight",
+    # "MoveLeft",
+    # "MoveBack",
     "RotateRight",
     "RotateLeft",
-    #"LookUp",
-    #"LookDown",
-    "DONE",
+    # "LookUp",
+    # "LookDown",
     "SENSE",
+    "DONE",
 ]
 
 MINIMAL_ACTION_LIST = [
@@ -492,7 +493,7 @@ class ThorEnv:
             self._define_target()
 
         if self.enforce_initial_distance:
-            d_target = min(self.cfg.success_distance + 0.001 * episode, 4.0)
+            d_target = min(2.0 + 0.0005 * episode, 6.0)
             d_min, d_max = d_target - 0.5, d_target + 0.5
             ok = self._teleport_agent_at_distance(
                 d_min=d_min,
