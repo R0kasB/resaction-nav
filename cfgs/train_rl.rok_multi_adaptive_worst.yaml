@@ -26,7 +26,7 @@ training:
 env:
   target_object_embed_dim: 8
   base_resolution: [224, 224]
-  success_distance: 1
+  success_distance: 1.3
   max_steps: 350
   max_sensing_budget: 350
   fixed_high_res: false
