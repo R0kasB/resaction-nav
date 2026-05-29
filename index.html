@@ -79,7 +79,7 @@
               </span>
               <!-- GitHub Website Link. -->
               <span class="link-block">
-                <a href="https://github.com/tarhanefe/cs503-project-template"
+                <a href="https://github.com/AntoninHUDRY/resaction-nav-website"
                    class="external-link button is-normal is-rounded is-dark">
                   <span class="icon">
                       <i class="fab fa-github"></i>
@@ -430,7 +430,7 @@ window.addEventListener("load", () => {
 
           <p>
             We formulate the problem as an embodied object-navigation task in
-            AI2-THOR simulator <a href="#ref-ai2thor">[4]</a>. This simulator provides us with an
+            AI2-THOR simulator <a href="#ref-ai2thor">[1]</a>. This simulator provides us with an
             already built-in simulation environement, and default apartment scenes. 
             Each episode takes place in one of the default apartment scene. At the
             beginning of the episode, the agent and objects are placed at an initial random position,
@@ -643,14 +643,14 @@ window.addEventListener("load", () => {
 
           <p>
             The policy follows a recurrent actor-critic architecture. The RGB
-            image is first encoded with a frozen DINOv2 visual encoder. In the
+            image is first encoded with a frozen DINOv2 visual encoder <a href="#ref-dinov2">[4]</a>. In the
             main adaptive setup, we use DINOv2-base, which outputs a 768-dimensional
             visual feature vector. This feature vector is concatenated with the
             auxiliary features and the learned target-object embedding.
           </p>
 
           <p>
-            The concatenated representation is then passed to a one hidden layer LSTM. The LSTM
+            The concatenated representation is then passed to a one hidden layer LSTM <a href="#ref-lstm">[5]</a>. The LSTM
             gives the agent memory across timesteps, which is important because
             the task is partially observable. A single low-resolution frame may
             not contain enough information to identify the target object or to
@@ -890,7 +890,7 @@ window.addEventListener("load", () => {
           <h3 class="title is-4">Policy optimization with PPO</h3>
 
           <p>
-            We train the policy with Proximal Policy Optimization (PPO). At
+            We train the policy with Proximal Policy Optimization (PPO) <a href="#ref-ai2thor">[6]</a>. At
             timestep \(t\), the recurrent policy receives the current
             observation \(o_t\) and the LSTM hidden state \(h_t\). It outputs a
             distribution over actions:
@@ -1011,7 +1011,7 @@ window.addEventListener("load", () => {
             perception efficiency. Task-performance metrics measure whether the
             agent solves the navigation problem. We mainly report reward
             success rate, episode length, policy loss and
-            Success weighted by Path Length (SPL).
+            Success weighted by Path Length (SPL) <a href="#ref-spl">[7]</a>.
           </p>
 
           <p>
@@ -1078,7 +1078,7 @@ window.addEventListener("load", () => {
           </p>
 
           <p>
-            Another important change was curriculum learning. Instead of always starting
+            Another important change was curriculum learning <a href="#ref-cl">[8]</a>. Instead of always starting
             from the full task difficulty, we first expose the agent to easier episodes.
             The agent starts closer to the target object, then the initial distance is
             gradually increased. This helps the policy first learn simple navigation
@@ -1467,9 +1467,11 @@ window.addEventListener("load", () => {
         <h2 class="title is-3" id="references">References</h2>
         <div class="content">
           <ol>
+
             <li id="ref-ai2thor">
               Kolve, E., Mottaghi, R., Han, W., VanderBilt, E., Weihs, L.,
-              Herrasti, A., ... &amp; Farhadi, A. (2017).
+              Herrasti, A., Deitke, M., Ehsani, K., Gordon, D., Zhu, Y.,
+              Kembhavi, A., Gupta, A., &amp; Farhadi, A. (2017).
               <cite>AI2-THOR: An Interactive 3D Environment for Visual AI</cite>.
               <em>arXiv preprint arXiv:1712.05474</em>.
               <a href="https://arxiv.org/abs/1712.05474" target="_blank">[link]</a>
@@ -1492,14 +1494,48 @@ window.addEventListener("load", () => {
               <a href="https://proceedings.neurips.cc/paper/2021/hash/e56954b4f6347e897f954495eab16a88-Abstract.html" target="_blank">[link]</a>
             </li>
 
-            <li id="ref-ai2thor">
-              Kolve, E., Mottaghi, R., Han, W., VanderBilt, E., 
-              Weihs, L., Herrasti, A., Deitke, M., Ehsani, K., 
-              Gordon, D., Zhu, Y., Kembhavi, A., Gupta, A., Farhadi, A. 
-              (2017).
-              <cite>AI2-THOR: An Interactive 3D Environment for Visual AI</cite>.
-              <em>arXiv</em>.
-              <a href="https://arxiv.org/abs/1712.05474" target="_blank">[link]</a>
+            <li id="ref-dinov2">
+              Oquab, M., Darcet, T., Moutakanni, T., Vo, H., Szafraniec, M.,
+              Khalidov, V., Fernandez, P., Haziza, D., Massa, F.,
+              El-Nouby, A., Assran, M., Ballas, N., Galuba, W., Howes, R.,
+              Huang, P.-Y., Misra, I., Rabbat, M., Sharma, V.,
+              Synnaeve, G., Xu, H., Jegou, H., Mairal, J., Labatut, P.,
+              Joulin, A., &amp; Bojanowski, P. (2023).
+              <cite>DINOv2: Learning Robust Visual Features without Supervision</cite>.
+              <em>arXiv preprint arXiv:2304.07193</em>.
+              <a href="https://arxiv.org/abs/2304.07193" target="_blank">[link]</a>
+            </li>
+
+            <li id="ref-lstm">
+              Hochreiter, S., &amp; Schmidhuber, J. (1997).
+              <cite>Long Short-Term Memory</cite>.
+              <em>Neural Computation</em>.
+              <a href="https://direct.mit.edu/neco/article-abstract/9/8/1735/6109/Long-Short-Term-Memory?redirectedFrom=fulltext" target="_blank">[link]</a>
+            </li>
+
+            <li id="ref-ppo">
+              Schulman, J., Wolski, F., Dhariwal, P., Radford, A.,
+              &amp; Klimov, O. (2017).
+              <cite>Proximal Policy Optimization Algorithms</cite>.
+              <em>arXiv preprint arXiv:1707.06347</em>.
+              <a href="https://arxiv.org/abs/1707.06347" target="_blank">[link]</a>
+            </li>
+
+            <li id="ref-spl">
+              Anderson, P., Chang, A., Chaplot, D. S., Dosovitskiy, A.,
+              Gupta, S., Koltun, V., Kosecka, J., Malik, J.,
+              Mottaghi, R., Savva, M., &amp; Zamir, A. R. (2018).
+              <cite>On Evaluation of Embodied Navigation Agents</cite>.
+              <em>arXiv preprint arXiv:1807.06757</em>.
+              <a href="https://arxiv.org/abs/1807.06757" target="_blank">[link]</a>
+            </li>
+
+            <li id="ref-cl">
+              Narvekar, S., Peng, B., Leonetti, M., Sinapov, J.,
+              Taylor, M. E., &amp; Stone, P. (2020).
+              <cite>Curriculum Learning for Reinforcement Learning Domains: A Framework and Survey</cite>.
+              <em>Journal of Machine Learning Research</em>.
+              <a href="https://arxiv.org/abs/2003.04960" target="_blank">[link]</a>
             </li>
           </ol>
         </div>
