@@ -49,7 +49,7 @@
     <div class="container is-max-desktop">
       <div class="columns is-centered">
         <div class="column has-text-centered">
-          <h1 class="title is-1 publication-title">Project Title</h1>
+          <h1 class="title is-1 publication-title">Dynamic Resolution for Task-Adaptive Efficient 3D Navigation and Target Detection</h1>
           <div class="is-size-5 publication-authors">
             <span class="author-block">
               <a href="https://people.epfl.ch/mathieu.sauser">Mathieu Sauser</a>,
@@ -189,13 +189,21 @@ window.addEventListener("load", () => {
           </p>
           <p>
             To prove the efficacy of this solution, we consider a RL 3D navigation task in AI2-THOR where an agent must reach and center a target object in apartment scenes. 
-            The agent performs navigation actions plus a special sensing action that temporarily increases observation resolution 
-            under a limited perceptual budget. Observations include RGB input, GPS+Compass, and past actions, encoded with a 
+            The agent performs navigation actions plus a special sensing action that temporarily increases observation resolution.
+            Observations include RGB input, GPS+Compass, and past actions, encoded with a 
             memory-based model (LSTM). The reward encourages successful goal completion and efficient navigation while penalizing time, 
             failures, and unnecessary high-resolution sensing.
           </p>
           <p>
-            [Results] IDK
+            A high-resolution baseline agent successfully learned to navigate toward target objects, 
+            validating the environment setup and training pipeline. However, introducing adaptive 
+            sensing proved significantly more difficult, as the adaptive model consistently converged 
+            to undesirable behaviors, either ignoring sensing entirely or overusing it while barely moving. 
+            These results highlight the difficulty of balancing sensing cost, exploration incentives, and 
+            curriculum progression in adaptive perception settings. Although stable adaptive behavior was not 
+            achieved within the project constraints, the approach remains promising and suggests several directions 
+            for future work, including improved reward shaping, larger environments, and more effective curriculum 
+            learning strategies.
           </p>
         </div>
       </div>
@@ -308,7 +316,7 @@ window.addEventListener("load", () => {
               Many real-world systems operate under constraints on sensing and computation.
               A realistic agent should not rely on constant access to dense visual
               information, but instead learn when additional information is worth acquiring.
-              This motivates dynamic-resolution perception for several reasons:
+              This motivates dynamic resolution perception for several reasons:
             </p>
 
             <ul>
@@ -425,9 +433,9 @@ window.addEventListener("load", () => {
             AI2-THOR simulator <a href="#ref-ai2thor">[4]</a>. This simulator provides us with an
             already built-in simulation environement, and default apartment scenes. 
             Each episode takes place in one of the default apartment scene. At the
-            beginning of the episode, the agent is placed at an initial position
-            and receives a target object category. The goal is to navigate
-            through the scene and reach the target object within a limited
+            beginning of the episode, the agent and objects are placed at an initial random position,
+            and the agent receives a target object category. The goal is to efficiently navigate
+            through the scene and reach the target object, constrained by a limited
             number of steps.
           </p>
           
@@ -456,11 +464,11 @@ window.addEventListener("load", () => {
 
           <p>
             The environment follows a reinforcement-learning interface. At each
-            timestep, the agent receives an observation, selects an action, and
+            timestep, the agent receives an observation, executes an action accordingly, and
             receives a reward. The action space of the adaptive agent includes
-            four movement actions, two rotation actions, a DONE action, and a
-            SENSE action. Movement actions displace the agent by 25 cm, while
-            rotations turn the agent by 45 degrees. The DONE action terminates
+            one movement action, two rotation actions, a DONE action, and a
+            SENSE action. the movement actions displace the agent by 25 cm forward, while
+            rotations turn the agent by 45 degrees left or right. The DONE action terminates
             the episode. The SENSE action improves the resolution of the current
             visual observation without moving the agent. Once the agent
             moves or rotates, the observation resets to low resolution.
@@ -493,21 +501,20 @@ window.addEventListener("load", () => {
           </p>
 
 
-          <h3 class="title is-4">Dynamic-resolution perception</h3>
+          <h3 class="title is-4">Dynamic resolution perception</h3>
 
           <p>
-            The central component of our method is a dynamic-resolution
+            The central component of our method is a dynamic resolution
             observation model. The agent does not always receive the original
-            RGB image. Instead, it starts from a degraded observation and can
-            spend a limited sensing budget to improve the resolution of its
-            current view.
+            RGB image. Instead, it starts from a degraded observation and can improve
+            the resolution of its current view.
           </p>
 
           <p>
             Resolution is represented by a downgrade level. Level 0 corresponds
             to the original image. Higher levels correspond to stronger
             degradation. When the agent uses SENSE, the downgrade level is
-            reduced by one, making the image sharper. When the agent moves, the
+            reduced by one, making the image sharper. When the agent moves or rotates, the
             observation is reset to the initial low-resolution level. This
             forces the policy to decide whether visual detail is worth its
             sensing cost.
@@ -539,6 +546,77 @@ window.addEventListener("load", () => {
             available to the agent.
           </p>
 
+          <table
+            style="
+              width: 100%;
+              border-collapse: collapse;
+              text-align: center;
+            "
+          >
+            <tr>
+              <td style="border: 1px solid #ccc; padding: 8px;">Level</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">Block size</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">Effective resolution</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">Unique pixels</td>
+            </tr>
+
+            <tr>
+              <td style="border: 1px solid #ccc; padding: 8px;">0</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">1x1</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">224x224</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">50,176</td>
+            </tr>
+
+            <tr>
+              <td style="border: 1px solid #ccc; padding: 8px;">1</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">2x2</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">112x112</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">12,544</td>
+            </tr>
+
+            <tr>
+              <td style="border: 1px solid #ccc; padding: 8px;">2</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">4x4</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">56x56</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">3,136</td>
+            </tr>
+
+            <tr>
+              <td style="border: 1px solid #ccc; padding: 8px;">3</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">8x8</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">28x28</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">784</td>
+            </tr>
+
+            <tr>
+              <td style="border: 1px solid #ccc; padding: 8px;">4</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">16x16</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">14x14</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">196</td>
+            </tr>
+
+            <tr>
+              <td style="border: 1px solid #ccc; padding: 8px;">5</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">32x32</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">7x7</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">49</td>
+            </tr>
+
+            <tr>
+              <td style="border: 1px solid #ccc; padding: 8px;">6</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">64x64</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">4x4</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">16</td>
+            </tr>
+
+            <tr>
+              <td style="border: 1px solid #ccc; padding: 8px;">7</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">128x128</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">2x2</td>
+              <td style="border: 1px solid #ccc; padding: 8px;">4</td>
+            </tr>
+          </table>
+
 
           <h3 class="title is-4">Observations and target conditioning</h3>
 
@@ -546,8 +624,8 @@ window.addEventListener("load", () => {
             The policy receives both visual and auxiliary information. The
             visual input is the current degraded RGB image. The auxiliary input
             contains the normalized GPS position of the agent, compass
-            information, the previous action, the current resolution level, the
-            remaining sensing budget, and the target object index.
+            information, the previous action, the current resolution level
+            and the target object index.
           </p>
 
           <p>
@@ -641,7 +719,7 @@ window.addEventListener("load", () => {
             r_t =
             &\ \alpha(d_{t-1} - d_t)
             + b_{\mathrm{vis}}\mathbf{1}_{\mathrm{first\ visible}} \\
-            &- c_{\mathrm{step}}\mathbf{1}_{\mathrm{valid\ nav}}
+            &- c_{\mathrm{step}}\mathbf{1}_{\mathrm{valid\ move/rotation}}
             - c_{\mathrm{bump}}\mathbf{1}_{\mathrm{failed\ action}} \\
             &- c_{\mathrm{sense}}\mathbf{1}_{\mathrm{valid\ SENSE}}
             - c_{\mathrm{over}}\mathbf{1}_{\mathrm{invalid\ SENSE}} \\
@@ -716,7 +794,7 @@ window.addEventListener("load", () => {
 
           <p>
             In the PoC, the agent always receives full-resolution observations.
-            The SENSE action is disabled, the sensing budget is set to zero, and
+            The SENSE action is disabled and
             the action space is reduced to four actions: MoveAhead, RotateLeft,
             RotateRight, and DONE. The environment uses 224 × 224 observations,
             a maximum episode length of 50 steps, random target sampling between
@@ -729,7 +807,7 @@ window.addEventListener("load", () => {
           <p>
             The adaptive agent is the main model of the project. Unlike the PoC,
             it receives degraded RGB observations and must learn when to use the
-            SENSE action. The adaptive agent therefore solves two coupled
+            SENSE action to increase its resolution. The adaptive agent therefore solves two coupled
             problems: navigation and perceptual control. It must decide both
             where to move and when additional visual detail is useful.
           </p>
@@ -958,7 +1036,7 @@ window.addEventListener("load", () => {
           <p>
             Perception-efficiency metrics measure how much high-resolution
             information the agent uses. We report the number of SENSE actions,
-            the remaining sensing budget, the final resolution level, and the
+            the final resolution level, and the
             total sensing cost. These metrics test whether the adaptive agent
             can approach the performance of the high-resolution baseline while
             using fewer high-resolution observations.
@@ -967,7 +1045,7 @@ window.addEventListener("load", () => {
           <p>
             Finally, we analyzed the learned sensing behavior. The goal is to study whether
             the agent tends to sense early in the episode, after rotations, near
-            the target, before DONE, or when the remaining budget is high. This
+            the target or before DONE. This
             helps determine whether the agent has learned a meaningful adaptive
             perception strategy rather than using high-resolution observations
             randomly.
@@ -1009,9 +1087,9 @@ window.addEventListener("load", () => {
 
           <p>
             We also use a curriculum for perception. At the beginning of training, the
-            agent starts with a relatively high visual resolution and a larger sensing
-            budget. As training progresses, the observations become more degraded and
-            the sensing budget becomes more constrained:
+            agent starts with a relatively high visual resolution and close to the target object. 
+            As training progresses, the observations become more degraded, and the agent starts further
+            from the object:
           </p>
 
           
@@ -1025,7 +1103,7 @@ window.addEventListener("load", () => {
 
           <p>
             Finally, we improved the policy inputs. Auxiliary features such as position
-            and sensing budget are normalized to keep them on a stable scale. Orientation
+            are normalized to keep them on a stable scale. Orientation
             is encoded with sine and cosine values instead of raw angles, avoiding
             discontinuities around 360 degrees. We also added explicit target conditioning:
             the target object is represented by a learned embedding rather than by a fixed
@@ -1444,8 +1522,8 @@ window.addEventListener("load", () => {
                     <p>
                       <strong>Mathieu Sauser:</strong> implemented the high-resolution proof of
                       concept used as a sanity check; implemented curriculum learning for the
-                      initial target distance, the starting resolution level, and the sensing
-                      budget; replaced Euclidean distance with geodesic distance for reward
+                      initial target distance and the starting resolution level;; replaced Euclidean distance 
+                      with geodesic distance for reward
                       shaping; improved the reward function; normalized auxiliary inputs and
                       added sine/cosine orientation encoding; improved target-object conditioning
                       with a learned target embedding; implemented baselines (low-resolution, fixed-schedule and random sensing agent) and extended the
@@ -1459,6 +1537,23 @@ window.addEventListener("load", () => {
                       implemented the environment updater;
                       made the website, including all visuals
                       and half of the text; reviewed code base; made half of the final presentation visuals, contributed to the final presentation text
+                    </p>
+                    <p>
+                      <strong>Rokas Bertašius:</strong> initialized the project repository and implemented the preliminary codebase 
+                      (thor_env, PPO agent, LSTM model, training script, and configs) that served as the basis for later development; 
+                      set up and maintained the training infrastructure on the IZAR HPC cluster 
+                      (environment setup, uv PATH resolution, Python 3.12/CUDA 12.1 compatibility, multi-GPU support); 
+                      refined the PPO agent and policy model; built the hyperparameter sweep system with parameter 
+                      grid generation and Weights & Biases run grouping; implemented per-step auxiliary feature logging and trajectory plotting; 
+                      iteratively tuned the reward function and training hyperparameters; diagnosed and fixed DONE-action 
+                      learning via a poc_rokas training mode, distance-gated penalties, distance-only success check, and adaptive resolution 
+                      onset control; added checkpoint retry logic for NFS failures; designed training configurations including parallel 
+                      environment runs; and contributed to the final presentation and reviewed the project website.
+                    </p>
+                    <p>
+                      <strong>Ryan Gold:</strong> wrote the initial training loop and PPO training script; implemented part of the observation pipeline; 
+                      added pipeline testing; and worked on parallel environment execution and the target-object embedding. 
+                      He left the project after the mid-project presentation.
                     </p>
                     <p><em>
                         This website is based on the <a href="https://github.com/nerfies/nerfies.github.io"
